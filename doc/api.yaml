@@ -1,0 +1,510 @@
+openapi: 3.0.0
+info:
+  title: WASAPhoto
+  description: >
+    This api allows user to create their account and get connected with their
+    friends by following them to see their photos and react on them.
+  version: '1'
+paths:
+  /session:
+    post:
+      tags: 
+        - Login
+      summary: Logs in the user
+      description: |-
+        If the user does not exist, it will be created,
+        and an identifier is returned.
+        If the user exists, the user identifier is returned.
+      operationId: doLogin
+      requestBody:
+        description: User details
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Maria
+                  pattern: ˆ.*?$
+                  minLength: 3
+                  maxLength: 16
+        required: true
+      responses:
+        '201':
+          description: User log-in action successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/username'
+  /user/{username}:
+    parameters:
+      - name: username 
+        in: path 
+        description: feed of the user
+        required: true
+        schema:
+          $ref: '#/components/schemas/username'
+      
+    get:
+      
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - User's Account 
+      summary: Users stream
+      description: Users stream where user can see the photos uploaded by their following
+      operationId: getMyStream
+      responses: 
+        '201':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/photos'
+              
+    put:
+      parameters: 
+      - name: newUsername
+        in: query
+        description: new username to update user's current username 
+        required: true
+        schema:
+          $ref: '#/components/schemas/username'
+      
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags: 
+        - User's Account 
+      summary: Update username
+      description: Update current username of the user with a new username 
+      operationId: setMyUserName
+      requestBody: 
+        description: updating the username 
+        content: 
+          application/json:
+            schema: 
+              $ref: '#/components/schemas/username'
+        required: true
+      responses:
+        '201':
+          description: successful opeartion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/username'
+        '204':
+          description: username already taken set another
+    post:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - User's Account 
+      summary: upload a new photo
+      description: Uploads a new photo to the users account which can be seen by the user and the poeple who follow the user 
+      operationId: uploadPhoto
+      requestBody:
+        description: uploading a new photo the account 
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+        required: true 
+      responses: 
+        '201':
+          description: Successfully uploaded the photo 
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: cannot upload a any other file other than images
+
+    
+  /user/{username}/followlist:
+    parameters:
+      - name: username 
+        in: path 
+        description: feed of the user
+        required: true
+        schema:
+          $ref: '#/components/schemas/username'
+      - name: username 
+        in: query
+        description: userid of the one who is going to be followed 
+        required: true
+        schema:
+          $ref: '#/components/schemas/username'
+    post:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - User's Friend Management
+      summary: following a user 
+      description: Adding a user to following list by following them 
+      operationId: followUser
+      requestBody:
+        description: followig a friend so adding them into follow list
+        content: 
+          application/json:
+            schema:
+              $ref: '#/components/schemas/username'
+        required: true
+      responses:
+        '201':
+          description: user successfully followed and added to the follow list 
+          content: 
+            application/json:
+              schema:
+                type: array
+                minItems: 0
+                maxItems: 1000
+                items:
+                  $ref: '#/components/schemas/username'
+        '204':
+          description: Sorry!! cannot find user
+    delete:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags: 
+        - User's Friend Management
+      summary: unfollowing a user
+      description: Unfollowing a user from follow list 
+      operationId: unfollowUser
+      responses: 
+        '204':
+          description: successfully unfollowed the user from user's account 
+        
+    
+  /user/{username}/banlist:
+    parameters:
+        - name: username 
+          in: path 
+          description: feed of the user
+          required: true
+          schema:
+            $ref: '#/components/schemas/username'
+        - name: username 
+          in: query
+          description: userid of the one who is going to be followed 
+          required: true
+          schema:
+            $ref: '#/components/schemas/username'
+    post:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - User's Block list Management
+      summary: banning user
+      description: banning a user from accessing to user's account 
+      operationId: banUser
+      requestBody:
+        description: add a user to the ban list 
+        content: 
+          application/json:
+            schema:
+              $ref: '#/components/schemas/username'
+        required: true
+      responses:
+        '201':
+          description: user successfully banned and added to the ban list 
+          content: 
+            application/json:
+              schema:
+                type: array
+                minItems: 0
+                maxItems: 1000
+                items:
+                  $ref: '#/components/schemas/username'
+        '204':
+          description: User not found
+    delete:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - User's Block list Management
+      summary: unbanning user 
+      description: unbanning a user which was banned earlier.
+      operationId: unbanUser
+      responses: 
+        '204':
+          description: successfully unbanned the user from user's account 
+          
+  /user/{username}/profile:
+    parameters:
+        - name: username 
+          in: path 
+          description: feed of the user
+          required: true
+          schema:
+            $ref: '#/components/schemas/username'
+    get:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - User's Profile
+      summary: user checking their profile
+      description: User can see their profile in which they can see how many photos they have uploaded , how many people they follow and how many people follow them
+      operationId: getUserProfile
+      responses:
+        '202':
+          description: successfully opened profile with all the statistics of photos and followers and following 
+          content:
+            application json:
+              schema:
+                type: object
+                properties:
+                  photos:
+                    type: array
+                    description: photos of the user in reverse chronological order
+                    minLength: 0
+                    maxLength: 1000
+                    items:
+                      $ref: '#/components/schemas/photos'
+                  followers:
+                    type: integer
+                    description: total number of followers of the user
+                    minimum: 0
+                    maximum: 5000
+                    example: 89
+                  following:
+                    type: integer
+                    description: total number of following of the user
+                    minimum: 0
+                    maximum: 5000
+                    example: 98
+    
+  /user/{username}/photos/{photoid}/likes:
+    parameters:
+      - name: username 
+        in: path 
+        description: feed of the user
+        required: true
+        schema:
+          $ref: '#/components/schemas/username'
+      - name: photoid
+        in: path
+        description: photo id of the particular photo
+        required: true
+        schema:
+          type: string 
+          pattern: ˆ.*?$
+          minLength: 0
+          maxLength: 40
+          example: 'maria_2'
+    post:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags: 
+        - Photo Operation
+      summary: liking photo
+      description: sending a like to own's photo or someone's photo whom the user follows 
+      operationId: likePhoto
+      requestBody:
+        description: sending like to a photo
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/like'
+        required: true
+      responses:
+        '201':
+          description: successfully liked the photo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/photos'
+        '204':
+          description: already liked photo 
+    
+    delete:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - Photo Operation
+      summary: removing like 
+      description: removing like from a photo which is already liked 
+      operationId: unlikePhoto
+      responses:
+        '204':
+          description: successfully disliked the photo
+          
+  /user/{username}/photos/{photoid}/comment:
+    parameters:
+        - name: username 
+          in: path 
+          description: feed of the user
+          required: true
+          schema:
+            $ref: '#/components/schemas/username'
+        - name: photoid
+          in: path
+          description: photo id of the particular photo
+          required: true
+          schema:
+            type: string 
+            pattern: ˆ.*?$
+            minLength: 0
+            maxLength: 40
+            example: 'maria_2'
+    post:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - Photo Operation
+      summary: commenting on a photo
+      description: commenting on a photo which is either uploaded by the user himself or by someone whom user follows
+      operationId: commentPhoto
+      requestBody:
+        description: commenting on a photo from user's feed or user's own photo
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/comments'
+        required: true
+      responses:
+        '201':
+          description: successfully commented on the photo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/photos'
+    delete:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - Photo Operation
+      summary: removing comment
+      description: removing comment from a photo which is already commented which means only the author can delete his comment 
+      operationId: uncommentPhoto
+      responses:
+        '204':
+          description: successfully uncommented the photo
+        
+  /user/{username}/photos/{photoid}:
+    parameters:
+        - name: username 
+          in: path 
+          description: feed of the user
+          required: true
+          schema:
+            $ref: '#/components/schemas/username'
+        - name: photoid
+          in: path
+          description: photo id of the particular photo
+          required: true
+          schema:
+            type: string 
+            pattern: ˆ.*?$
+            minLength: 0
+            maxLength: 40
+            example: 'maria_2'
+    delete:
+      security:
+        - bearerAuth: [wasaphoto security] 
+      tags:
+        - Photo Operation
+      summary: deleting photo
+      description: removing a photo by the author and the likes and commments are attached with the photo, they will aslo get deleted 
+      operationId: deletePhoto
+      responses:
+        '204':
+          description: successfully deleted photo
+          
+components:
+  securitySchemes:
+    bearerAuth:         
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    comments:
+      type: object
+      properties:
+        photo_username_number:
+          type: string
+          pattern: ˆ.*?$
+          minLength: 0
+          maxLength: 50
+          example: maria1205
+        commenter_username:
+          type: string
+          pattern: ˆ.*?$
+          minLength: 0
+          maxLength: 30
+          example: abcdef012345
+        comment:
+          type: string
+          pattern: ˆ.*?$
+          minLength: 5
+          maxLength: 50
+          example: beautiful
+          
+    like:
+      type: object
+      properties:
+        photo_username_number:
+          type: string
+          pattern: ˆ.*?$
+          minLength: 0
+          maxLength: 50
+          example: maria1205
+        liked_by:
+          type: string
+          pattern: ˆ.*?$
+          minLength: 0
+          maxLength: 30
+          example: abcdef012345
+        like:
+          type: boolean
+    username:
+      type: object
+      properties:
+        identifier:
+          type: string
+          minLength: 0
+          maxLength: 30
+          example: abcdef012345
+          pattern: ˆ.*?$
+    photos:
+      description: 'it gives photos of particular user with photo number and all details about the photo'
+      type: array
+      minItems: 5
+      maxItems: 7
+      items:
+        oneOf:
+        - type: string
+          description: image in form of binary bits 
+          format: binary
+        - 
+          type: string 
+          pattern: ˆ.*?$
+          description: userid of the uploader concataned with number of the photo of that user to make it a unique id for photo
+          minLength: 0
+          maxLength: 40
+          example: 'maria_2'
+        - type: string 
+          description:  date and time of photo
+          format: date-time
+          example: 2017-07-21T17:32:28Z
+        - type: integer 
+          description: number of likes
+          minimum: 0
+          example: 50
+        - type: integer
+          description: number of comments
+          minimum: 0
+          example: 23
+        - type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            type: string
+            pattern: ˆ.*?$
+            minLength: 5
+            maxLength: 50
+            example: 'awesome'
