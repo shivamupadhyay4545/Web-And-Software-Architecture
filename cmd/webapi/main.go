@@ -2,7 +2,8 @@ package main
 
 import (
 	"os"
-	routes "wasaphoto/routes"
+
+	routes "github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/routes"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"

@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"wasaphoto/controllers"
+	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/controllers"
 
 	"github.com/gin-gonic/gin"
 )

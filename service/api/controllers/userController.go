@@ -10,8 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wasaphoto/database"
-	"wasaphoto/models"
+
+	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/models"
+	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
