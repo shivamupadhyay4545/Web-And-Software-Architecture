@@ -5,11 +5,19 @@ info:
     This api allows user to create their account and get connected with their
     friends by following them to see their photos and react on them.
   version: '1'
+  
+tags:
+  - name: Login
+  - name: User's Account
+  - name: User's Friend Management
+  - name: User's Block list Management
+  - name: User's Profile 
+  - name: Photo Operation
 paths:
   /session:
     post:
       security:
-        - bearerAuth: [wasaphoto]
+        - bearerAuth: [ ]
       tags: 
         - Login
       summary: Logs in the user
@@ -133,7 +141,7 @@ paths:
           description: cannot upload a any other file other than images
 
     
-  /user/{username}/followlist:
+  /user/{username}/follow_list:
     parameters:
       - name: username 
         in: path 
@@ -189,7 +197,7 @@ paths:
           description: successfully unfollowed the user from user's account 
         
     
-  /user/{username}/banlist:
+  /user/{username}/ban_list:
     parameters:
         - name: username 
           in: path 
@@ -289,7 +297,7 @@ paths:
                     maximum: 5000
                     example: 98
     
-  /user/{username}/photos/{photoid}/likes:
+  /user/{username}/photos/likes:
     parameters:
       - name: username 
         in: path 
@@ -297,17 +305,6 @@ paths:
         required: true
         schema:
           $ref: '#/components/schemas/username'
-      - name: photoid
-        in: path
-        description: photo id of the particular photo
-        required: true
-        schema:
-          description: photoid of the photo
-          type: string 
-          pattern: '^.*?$'
-          minLength: 0
-          maxLength: 40
-          example: 'maria_2'
     post:
       security:
         - bearerAuth: [ ] 
@@ -345,7 +342,7 @@ paths:
         '204':
           description: successfully disliked the photo
           
-  /user/{username}/photos/{photoid}/comment:
+  /user/{username}/photos/comment:
     parameters:
         - name: username 
           in: path 
@@ -353,17 +350,6 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/username'
-        - name: photoid
-          in: path
-          description: photo id of the particular photo
-          required: true
-          schema:
-            description: photo id of the photo
-            type: string 
-            pattern:   '^.*?$'
-            minLength: 0
-            maxLength: 40
-            example: 'maria_2'
     post:
       security:
         - bearerAuth: [ ] 
@@ -398,7 +384,7 @@ paths:
         '204':
           description: successfully uncommented the photo
         
-  /user/{username}/photos/{photoid}:
+  /user/{username}/deleted_photos:
     parameters:
         - name: username 
           in: path 
@@ -406,17 +392,6 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/username'
-        - name: photoid
-          in: path
-          description: photo id of the particular photo
-          required: true
-          schema:
-            description: photo id of the photo
-            type: string 
-            pattern:   '^.*?$'
-            minLength: 0
-            maxLength: 40
-            example: 'maria_2'
     delete:
       security:
         - bearerAuth: [ ] 

@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,7 +28,7 @@ func LikePhoto() gin.HandlerFunc {
 		photocode, err := strconv.Atoi(parts[1])
 		if err != nil {
 			// Handle the error if the conversion fails
-			fmt.Println("Error1:", err)
+			log.Fatal(err)
 			return
 		}
 		db, _ := database.Userlike()
@@ -45,7 +45,10 @@ func LikePhoto() gin.HandlerFunc {
 		result, err := tx.Exec("INSERT OR IGNORE INTO like (photoid, likeuser) VALUES (?, ?)", Photoid.Photoid, username)
 		if err != nil {
 			// Rollback the transaction if there is an error
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				log.Fatal("Error rolling back transaction:", err)
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute INSERT statement", "err": err.Error()})
 			return
 		}
@@ -54,7 +57,10 @@ func LikePhoto() gin.HandlerFunc {
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
 			// Rollback the transaction if there is an error
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				log.Fatal("Error rolling back transaction:", err)
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get affected rows", "err": err.Error()})
 			return
 		}
@@ -64,7 +70,10 @@ func LikePhoto() gin.HandlerFunc {
 			_, err = tx.Exec("UPDATE photos SET likes = likes+1 WHERE username = ? AND photoNum = ?", parts[0], photocode)
 			if err != nil {
 				// Rollback the transaction if there is an error
-				tx.Rollback()
+				err := tx.Rollback()
+				if err != nil {
+					log.Fatal("Error rolling back transaction:", err)
+				}
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute UPDATE statement", "err": err.Error()})
 				return
 			}
@@ -98,7 +107,7 @@ func UnlikePhoto() gin.HandlerFunc {
 		photocode, err := strconv.Atoi(parts[1])
 		if err != nil {
 			// Handle the error if the conversion fails
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		db, _ := database.Userlike()
@@ -127,14 +136,14 @@ func GetPhoto() gin.HandlerFunc {
 		photocode, err := strconv.Atoi(parts[1])
 		if err != nil {
 			// Handle the error if the conversion fails
-			fmt.Println("Error:", err.Error())
+			log.Fatal(err)
 			return
 		}
 		db, _ := database.UpPhoto()
 		defer db.Close()
 		stmt, err := db.Prepare("SELECT photos.photo FROM photos WHERE username = ? AND photoNum = ?")
 		if err != nil {
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		defer stmt.Close()
@@ -142,11 +151,15 @@ func GetPhoto() gin.HandlerFunc {
 		// Execute the SQL statement with the specified primary key values
 		row := stmt.QueryRow(username, photocode)
 		var photodata []byte
-		row.Scan(&photodata)
+		err = row.Scan(&photodata)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		photoid := PhotoId
 		stmt, err = db.Prepare("SELECT * FROM comments WHERE photoid = ? ORDER BY date_time")
 		if err != nil {
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		defer stmt.Close()
@@ -154,7 +167,7 @@ func GetPhoto() gin.HandlerFunc {
 		// Execute the SQL statement with the specified photoid
 		rows, err := stmt.Query(photoid)
 		if err != nil {
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		defer rows.Close()
@@ -175,7 +188,7 @@ func GetPhoto() gin.HandlerFunc {
 
 			err := rows.Scan(&now.Photoid, &now.CommentUser, &now.Comment, &now.DateTime)
 			if err != nil {
-				fmt.Println("Error:", err)
+				log.Fatal(err)
 				return
 			}
 
@@ -185,7 +198,7 @@ func GetPhoto() gin.HandlerFunc {
 
 		// Check for errors from iterating over rows
 		if err := rows.Err(); err != nil {
-			fmt.Println("Error scanning row:", err)
+			log.Fatal(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
 			return
 		}
@@ -215,7 +228,7 @@ func CommentPhoto() gin.HandlerFunc {
 		photocode, err := strconv.Atoi(parts[1])
 		if err != nil {
 			// Handle the error if the conversion fails
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		db, _ := database.UserComment()
@@ -257,7 +270,7 @@ func UncommentPhoto() gin.HandlerFunc {
 		photocode, err := strconv.Atoi(parts[1])
 		if err != nil {
 			// Handle the error if the conversion fails
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		db, _ := database.UserComment()

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -34,12 +33,12 @@ func Dologin() gin.HandlerFunc {
 		defer cancel()
 		var user models.Details
 
-		//convert the JSON data coming from postman to something that golang understands
+		// convert the JSON data coming from postman to something that golang understands
 		if err := c.BindJSON(&user); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		//validate the data based on user struct
+		// validate the data based on user struct
 
 		validationErr := validate.Struct(user)
 		if validationErr != nil {
@@ -50,7 +49,6 @@ func Dologin() gin.HandlerFunc {
 		db, _ := database.Usermain()
 		_, err := db.Exec("INSERT OR IGNORE INTO users (username,name) VALUES (?,?)", user.Id, user.Name)
 		defer db.Close()
-		// command to test this function : curl -X POST -H "Content-Type: application/json" -d '{"name": "Maria"}' http://localhost:8080/session
 
 		if err != nil {
 			log.Fatal(err)
@@ -78,7 +76,7 @@ func GetMyStream() gin.HandlerFunc {
 
 		rows, err := db.Query("SELECT photos.username,photos.photoNum,photos.photo, photos.date_time,photos.likes,photos.comments FROM photos INNER JOIN followers ON photos.username = followers.following WHERE followers.follower = ?", username)
 		if err != nil {
-			fmt.Println("Error executing query:", err)
+			log.Fatal(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute query"})
 			return
 		}
@@ -91,11 +89,16 @@ func GetMyStream() gin.HandlerFunc {
 			photo.PhotoId = photo.Username + "_" + strphotonum
 			photo.Liked = CheckDislikeStatus(username, photo.PhotoId)
 			if err != nil {
-				fmt.Println("Error scanning row:", err)
+				log.Fatal(err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
 				return
 			}
 			photos = append(photos, photo)
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
+			return
 		}
 		// Return the result to the client
 		c.JSON(http.StatusOK, gin.H{"photos": photos})
@@ -135,7 +138,7 @@ func UpdateUsername() gin.HandlerFunc {
 		db, _ := database.Usermain()
 		defer db.Close()
 
-		//Check if the record is present or not
+		// Check if the record is present or not
 		var count int
 		err := db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
 		if err != nil {
@@ -341,7 +344,7 @@ func UnfollowUser() gin.HandlerFunc {
 // BanUser is a placeholder for the banUser handler
 func BanUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		//manage input request key name first make it consistent like
+		// manage input request key name first make it consistent like
 		username := c.Param("username")
 		var ban struct {
 			Banned string `json:"banned" validate:"required,min=3,max=16"`
@@ -425,7 +428,7 @@ func GetMyProfile() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		username := c.Param("username")
 
-		//convert the JSON data coming from postman to something that golang understands
+		// convert the JSON data coming from postman to something that golang understands
 		db, _ := database.UpPhoto()
 		defer db.Close()
 		var profile models.Myprofile
@@ -463,7 +466,7 @@ func GetMyProfile() gin.HandlerFunc {
 			photo.PhotoId = photo.Username + "_" + strphotonum
 			photo.Liked = CheckDislikeStatus(username, photo.PhotoId)
 			if err != nil {
-				fmt.Println("Error scanning row:", err)
+				log.Fatal(err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
 				return
 			}
@@ -472,6 +475,11 @@ func GetMyProfile() gin.HandlerFunc {
 			// profile.Followers = followerNo
 			// profile.Following = followingNo
 			// profile.Photos = photos
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
+			return
 		}
 		profile.PhotoNo = count
 		profile.Followers = followerNo
@@ -486,7 +494,7 @@ func CheckDislikeStatus(username string, photoid string) int {
 	db, err := database.Userlike()
 
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Fatal(err)
 		return 0
 	}
 	defer db.Close()
@@ -495,7 +503,7 @@ func CheckDislikeStatus(username string, photoid string) int {
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM like WHERE likeuser = ? AND photoid = ?", username, photoid).Scan(&count)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Fatal(err)
 		return 0
 	}
 
@@ -520,7 +528,7 @@ func RemovePhoto() gin.HandlerFunc {
 		photocode, err := strconv.Atoi(parts[1])
 		if err != nil {
 			// Handle the error if the conversion fails
-			fmt.Println("Error:", err)
+			log.Fatal(err)
 			return
 		}
 		db, _ := database.UpPhoto()

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	routes "github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/routes"
@@ -29,6 +30,9 @@ func main() {
 	routes.PhotoRoutes(router)
 	routes.UserRoutes(router)
 
-	router.Run(":" + port)
+	err := router.Run(":" + port)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 }
