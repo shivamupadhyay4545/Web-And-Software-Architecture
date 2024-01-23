@@ -81,7 +81,7 @@
           const username = this.$route.params.username;
           const response = await axios.get(`http://localhost:8080/user/${username}/profile`);
           const data = response.data;
-  
+          console.log(data)
           this.numberOfPhotos = data['my profile']['PhotoNo'];
           this.followersCount = data['my profile']['Followers'];
           this.followingsCount = data['my profile']['Following'];

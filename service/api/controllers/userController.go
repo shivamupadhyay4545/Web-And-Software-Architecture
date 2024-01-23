@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -13,7 +15,6 @@ import (
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/models"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/database"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -21,472 +22,556 @@ var validate = validator.New()
 
 // to close the tcp connection : lsof -i :8080 -> kill -9 <PID>
 
-func Dologin() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// authHeader := c.GetHeader("Authorization")
-		// expectedToken := "Bearer [wasaphoto security]"
-		// if authHeader != expectedToken {
-		// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		// 	return
-		// }
-		var _, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
-		var user models.Details
+func Dologin(w http.ResponseWriter, r *http.Request) {
+	// Assuming you still want to check the authorization header
+	// authHeader := r.Header.Get("Authorization")
+	// expectedToken := "Bearer [wasaphoto security]"
+	// if authHeader != expectedToken {
+	// 	w.WriteHeader(http.StatusUnauthorized)
+	// 	w.Write([]byte(`{"error": "Unauthorized"}`))
+	// 	return
+	// }
 
-		// convert the JSON data coming from postman to something that golang understands
-		if err := c.BindJSON(&user); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		// validate the data based on user struct
+	var _, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
 
-		validationErr := validate.Struct(user)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
-		// user is not assigned the value
-		db, _ := database.Usermain()
-		_, err := db.Exec("INSERT OR IGNORE INTO users (username,name) VALUES (?,?)", user.Id, user.Name)
-		defer db.Close()
+	var user models.Details
 
-		if err != nil {
-			log.Fatal(err)
-		}
-		c.JSON(http.StatusOK, gin.H{"message": "user Login Done"})
-
+	// Decode JSON data coming from the request
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&user); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "` + err.Error() + `"}`))
+		return
 	}
 
+	// Validate the data based on the user struct
+	// Note: replace validate with your validation logic
+	validationErr := validate.Struct(user)
+	if validationErr != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "` + validationErr.Error() + `"}`))
+		return
+	}
+
+	// Connect to the database
+	db, _ := database.Usermain()
+	defer db.Close()
+
+	// Insert or ignore into users table
+	_, err := db.Exec("INSERT OR IGNORE INTO users (username, name) VALUES (?, ?)", user.Id, user.Name)
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Internal Server Error"}`))
+		return
+	}
+
+	// Respond with a success message
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "User Login Done"}`))
 }
 
-func GetMyStream() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Removed unused context and cancellation lines
-		username := c.Param("username")
-		var Ignore struct {
-			ignore int
-		}
-		// Handle errors when opening the database connection
-		db, err := database.UpPhoto()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to the database"})
-			return
-		}
-		defer db.Close()
-
-		rows, err := db.Query("SELECT photos.username,photos.photoNum,photos.photo, photos.date_time,photos.likes,photos.comments FROM photos INNER JOIN followers ON photos.username = followers.following WHERE followers.follower = ?", username)
-		if err != nil {
-			log.Fatal(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute query"})
-			return
-		}
-		defer rows.Close()
-		var photos []models.Photo
-		for rows.Next() {
-			var photo models.Photo
-			err := rows.Scan(&photo.Username, &Ignore.ignore, &photo.Photobytes, &photo.CreatedAt, &photo.Likes, &photo.NoComments)
-			strphotonum := strconv.Itoa(Ignore.ignore)
-			photo.PhotoId = photo.Username + "_" + strphotonum
-			photo.Liked = CheckDislikeStatus(username, photo.PhotoId)
-			if err != nil {
-				log.Fatal(err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
-				return
-			}
-			photos = append(photos, photo)
-		}
-		if err := rows.Err(); err != nil {
-			log.Fatal(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
-			return
-		}
-		// Return the result to the client
-		c.JSON(http.StatusOK, gin.H{"photos": photos})
+func GetMyStream(w http.ResponseWriter, r *http.Request) {
+	// Removed unused context and cancellation lines
+	username := r.URL.Query().Get("username")
+	var Ignore struct {
+		ignore int
 	}
+	// Handle errors when opening the database connection
+	db, err := database.UpPhoto()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to connect to the database"}`))
+		return
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT photos.username,photos.photoNum,photos.photo, photos.date_time,photos.likes,photos.comments FROM photos INNER JOIN followers ON photos.username = followers.following WHERE followers.follower = ?", username)
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to execute query"}`))
+		return
+	}
+	defer rows.Close()
+	var photos []models.Photo
+	for rows.Next() {
+		var photo models.Photo
+		err := rows.Scan(&photo.Username, &Ignore.ignore, &photo.Photobytes, &photo.CreatedAt, &photo.Likes, &photo.NoComments)
+		strphotonum := strconv.Itoa(Ignore.ignore)
+		photo.PhotoId = photo.Username + "_" + strphotonum
+		photo.Liked = CheckDislikeStatus(username, photo.PhotoId)
+		if err != nil {
+			log.Fatal(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error": "Failed to scan row", "ERR": "` + err.Error() + `"}`))
+			return
+		}
+		photos = append(photos, photo)
+	}
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to scan row", "ERR": "` + err.Error() + `"}`))
+		return
+	}
+	// Return the result to the client
+	responseJSON, err := json.Marshal(map[string]interface{}{"photos": photos})
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to marshal response"}`))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseJSON)
 }
 
 // UpdateUsername is a placeholder for the updateUsername handler
-func UpdateUsername() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func UpdateUsername(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		username := c.Param("username")
-		var changeName struct {
-			Name    string `json:"name" validate:"required,min=3,max=16"`
-			Newname string `json:"newname" validate:"required,min=3,max=16"`
-		}
-
-		// Convert the JSON data from the request to the 'user' struct
-		if err := c.ShouldBindJSON(&changeName); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error1": err.Error()})
-			return
-		}
-
-		// Validate the data based on the 'user' struct
-		validationErr := validate.Struct(changeName)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error1": validationErr.Error()})
-			return
-		}
-
-		// // Validate the data based on the 'user' struct
-		// validationErr = validate.Struct(changeName.Newname)
-		// if validationErr != nil {
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error2": validationErr.Error()})
-		// 	return
-		// }
-
-		db, _ := database.Usermain()
-		defer db.Close()
-
-		// Check if the record is present or not
-		var count int
-		err := db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
-			return
-		}
-
-		if count != 1 {
-			c.JSON(http.StatusConflict, gin.H{"error": "username conflict error"})
-			return
-		}
-		err = db.QueryRow("SELECT COUNT(*) FROM users WHERE name = ?", changeName.Name).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
-			return
-		}
-
-		if count != 1 {
-			c.JSON(http.StatusConflict, gin.H{"error": "username conflict error"})
-			return
-		}
-
-		// Perform the username update
-		_, err = db.Exec("UPDATE users SET name = ? WHERE name = ? and username = ?", changeName.Newname, changeName.Name, username)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while updating database"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Username updated successfully"})
+	var changeName struct {
+		Name    string `json:"name" validate:"required,min=3,max=16"`
+		Newname string `json:"newname" validate:"required,min=3,max=16"`
 	}
+
+	// Decode JSON data coming from the request
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&changeName); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error1": "` + err.Error() + `"}`))
+		return
+	}
+
+	// Validate the data based on the 'user' struct
+	// Note: replace validate with your validation logic
+	validationErr := validate.Struct(changeName)
+	if validationErr != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error1": "` + validationErr.Error() + `"}`))
+		return
+	}
+
+	// Connect to the database
+	db, err := database.Usermain()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to connect to the database"}`))
+		return
+	}
+	defer db.Close()
+
+	// Check if the record is present or not
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Database query error"}`))
+		return
+	}
+
+	if count != 1 {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"error": "username conflict error"}`))
+		return
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM users WHERE name = ?", changeName.Name).Scan(&count)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Database query error"}`))
+		return
+	}
+
+	if count != 1 {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"error": "username conflict error"}`))
+		return
+	}
+
+	// Perform the username update
+	_, err = db.Exec("UPDATE users SET name = ? WHERE name = ? and username = ?", changeName.Newname, changeName.Name, username)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Error while updating database"}`))
+		return
+	}
+
+	// Respond with a success message
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Username updated successfully"}`))
 }
 
 // UploadPhoto is a placeholder for the uploadPhoto handler
-func UploadPhoto() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username := c.Param("username")
 
-		// Parse the form data, including file uploads
-		err := c.Request.ParseMultipartForm(10 << 20) // 10 MB limit
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to parse form data"})
-			return
-		}
+func UploadPhoto(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// Get the file from the form data
-		file, handler, err := c.Request.FormFile("image")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing or invalid image file in the request"})
-			return
-		}
-		defer file.Close()
-
-		// Check if the file extension is valid
-		allowedExtensions := []string{"png", "jpg", "jpeg"}
-		ext := filepath.Ext(handler.Filename)
-		if ext == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file name"})
-			return
-		}
-		ext = strings.ToLower(filepath.Ext(handler.Filename)[1:])
-		isValidExtension := false
-		for _, allowedExt := range allowedExtensions {
-			if ext == allowedExt {
-				isValidExtension = true
-				break
-			}
-		}
-		if !isValidExtension {
-			c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Only PNG, JPG, and JPEG images are allowed"})
-			return
-		}
-
-		// Read the binary data from the file
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read the file", "details": err.Error()})
-			return
-		}
-		db, _ := database.UpPhoto()
-		defer db.Close()
-
-		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM photos WHERE username = ?", username).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
-			return
-		}
-
-		t := time.Now()
-		count = count + 1
-		_, err = db.Exec("INSERT INTO photos (username, photoNum, photo, date_time) VALUES (?,?,?,?)", username, count, fileBytes, t)
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store the file in the database", "details": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusCreated, gin.H{"message": "Successfully uploaded and stored the photo", "file": fileBytes, "user": username})
-
+	// Parse the form data, including file uploads
+	err := r.ParseMultipartForm(10 << 20) // 10 MB limit
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "Unable to parse form data"}`))
+		return
 	}
+
+	// Get the file from the form data
+	file, handler, err := r.FormFile("image")
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "Missing or invalid image file in the request"}`))
+		return
+	}
+	defer file.Close()
+
+	// Check if the file extension is valid
+	allowedExtensions := []string{"png", "jpg", "jpeg"}
+	ext := filepath.Ext(handler.Filename)
+	if ext == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "Invalid file name"}`))
+		return
+	}
+	ext = strings.ToLower(filepath.Ext(handler.Filename)[1:])
+	isValidExtension := false
+	for _, allowedExt := range allowedExtensions {
+		if ext == allowedExt {
+			isValidExtension = true
+			break
+		}
+	}
+	if !isValidExtension {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		w.Write([]byte(`{"error": "Only PNG, JPG, and JPEG images are allowed"}`))
+		return
+	}
+
+	// Read the binary data from the file
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to read the file", "details": "` + err.Error() + `"}`))
+		return
+	}
+
+	// Connect to the database
+	db, err := database.UpPhoto()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to connect to the database"}`))
+		return
+	}
+	defer db.Close()
+
+	// Check the count of photos for the given username
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM photos WHERE username = ?", username).Scan(&count)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Database query error"}`))
+		return
+	}
+
+	// Increment the count for the new photo
+	t := time.Now()
+	count = count + 1
+
+	// Insert the new photo into the database
+	_, err = db.Exec("INSERT INTO photos (username, photoNum, photo, date_time) VALUES (?,?,?,?)", username, count, fileBytes, t)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Failed to store the file in the database", "details": "` + err.Error() + `"}`))
+		return
+	}
+
+	// Respond with a success message
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(`{"message": "Successfully uploaded and stored the photo", "user": "` + username + `"}`))
 }
 
 // FollowUser is a placeholder for the followUser handler
-func FollowUser() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username := c.Param("username")
-		var follow struct {
-			Following string `json:"following" validate:"required,min=3,max=16"`
-		}
+func FollowUser(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// Convert the JSON data from the request to the 'user' struct
-		if err := c.ShouldBindJSON(&follow); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error1": err.Error()})
-			return
-		}
-
-		// Validate the data based on the 'user' struct
-		validationErr := validate.Struct(follow)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
-
-		db, _ := database.Follower()
-		defer db.Close()
-		var count int
-		err := db.QueryRow("SELECT COUNT(*) FROM banlist WHERE who = ? AND whom = ?", username, follow.Following).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-		if count != 0 {
-			c.JSON(http.StatusConflict, gin.H{"error": "User in ban list"})
-			return
-		}
-		err = db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", follow.Following).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
-			return
-		}
-
-		if count != 1 {
-			c.JSON(http.StatusConflict, gin.H{"error": "user does not exist"})
-			return
-		}
-		_, err = db.Exec("INSERT OR IGNORE INTO followers (follower,following) VALUES (?,?)", username, follow.Following)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "User successfully followed"})
-
+	// Read the JSON data from the request body
+	var follow struct {
+		Following string `json:"following" validate:"required,min=3,max=16"`
 	}
+	err := json.NewDecoder(r.Body).Decode(&follow)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	// Validate the data based on the 'follow' struct
+	validationErr := validate.Struct(follow)
+	if validationErr != nil {
+		log.Fatal(validationErr)
+		return
+	}
+
+	db, err := database.Follower()
+	if err != nil {
+		http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM banlist WHERE who = ? AND whom = ?", username, follow.Following).Scan(&count)
+	if err != nil {
+		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if count != 0 {
+		http.Error(w, `{"error": "User in ban list"}`, http.StatusConflict)
+		return
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", follow.Following).Scan(&count)
+	if err != nil {
+		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if count != 1 {
+		http.Error(w, `{"error": "User does not exist"}`, http.StatusConflict)
+		return
+	}
+
+	_, err = db.Exec("INSERT OR IGNORE INTO followers (follower, following) VALUES (?,?)", username, follow.Following)
+	if err != nil {
+		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "User successfully followed"}`))
 }
 
 // UnfollowUser is a placeholder for the unfollowUser handler
-func UnfollowUser() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username := c.Param("username")
-		var follow struct {
-			Following string `json:"following" validate:"required,min=3,max=16"`
-		}
 
-		// Convert the JSON data from the request to the 'user' struct
-		if err := c.ShouldBindJSON(&follow); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error1": err.Error()})
-			return
-		}
+func UnfollowUser(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// Validate the data based on the 'user' struct
-		validationErr := validate.Struct(follow)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
-
-		db, _ := database.Follower()
-		defer db.Close()
-		var count int
-		err := db.QueryRow("SELECT COUNT(*) FROM followers WHERE follower = ? AND following = ?", username, follow.Following).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
-			return
-		}
-
-		if count != 1 {
-			c.JSON(http.StatusConflict, gin.H{"error": "you never followed that user"})
-			return
-		}
-
-		_, err = db.Exec("DELETE FROM followers WHERE follower = ? and following = ?", username, follow.Following)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "User successfully unfollowed"})
+	// Read the JSON data from the request body
+	var follow struct {
+		Following string `json:"following" validate:"required,min=3,max=16"`
 	}
+	err := json.NewDecoder(r.Body).Decode(&follow)
+	if err != nil {
+		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate the data based on the 'follow' struct
+	validationErr := validate.Struct(follow)
+	if validationErr != nil {
+		http.Error(w, `{"error": "`+validationErr.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	db, err := database.Follower()
+	if err != nil {
+		log.Fatal("Failed to connect to the database: ", err)
+	}
+	defer db.Close()
+
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM followers WHERE follower = ? AND following = ?", username, follow.Following).Scan(&count)
+	if err != nil {
+		log.Fatal("Database query error: ", err)
+	}
+
+	if count != 1 {
+		http.Error(w, `{"error": "You never followed that user"}`, http.StatusConflict)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM followers WHERE follower = ? AND following = ?", username, follow.Following)
+	if err != nil {
+		log.Fatal("Error unfollowing user: ", err)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "User successfully unfollowed"}`))
 }
 
 // BanUser is a placeholder for the banUser handler
-func BanUser() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// manage input request key name first make it consistent like
-		username := c.Param("username")
-		var ban struct {
-			Banned string `json:"banned" validate:"required,min=3,max=16"`
-		}
-		// Convert the JSON data from the request to the 'user' struct
-		if err := c.ShouldBindJSON(&ban); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error1": err.Error()})
-			return
-		}
+func BanUser(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// Validate the data based on the 'user' struct
-		validationErr := validate.Struct(ban)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
-
-		db, _ := database.Ban()
-		defer db.Close()
-
-		_, err := db.Exec("INSERT OR IGNORE INTO banlist (who,whom) VALUES (?,?)", username, ban.Banned)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error while inserting": err})
-			return
-		}
-		// Check if the new username is already taken
-
-		_, err = db.Exec("DELETE FROM followers WHERE follower = ? and following = ?", username, ban.Banned)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error while deleting": err})
-			return
-		}
-		_, err = db.Exec("DELETE FROM followers WHERE follower = ? and following = ?", ban.Banned, username)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error while deleting": err})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"message": "BanUser successful"})
+	// Read the JSON data from the request body
+	var ban struct {
+		Banned string `json:"banned" validate:"required,min=3,max=16"`
 	}
+	err := json.NewDecoder(r.Body).Decode(&ban)
+	if err != nil {
+		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate the data based on the 'ban' struct
+	validationErr := validate.Struct(ban)
+	if validationErr != nil {
+		http.Error(w, `{"error": "`+validationErr.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	db, err := database.Ban()
+	if err != nil {
+		log.Fatal("Failed to connect to the database: ", err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec("INSERT OR IGNORE INTO banlist (who, whom) VALUES (?, ?)", username, ban.Banned)
+	if err != nil {
+		log.Fatal("Error while inserting into banlist: ", err)
+	}
+
+	_, err = db.Exec("DELETE FROM followers WHERE follower = ? AND following = ?", username, ban.Banned)
+	if err != nil {
+		log.Fatal("Error while deleting from followers: ", err)
+	}
+
+	_, err = db.Exec("DELETE FROM followers WHERE follower = ? AND following = ?", ban.Banned, username)
+	if err != nil {
+		log.Fatal("Error while deleting from followers: ", err)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "BanUser successful"}`))
 }
 
 // UnbanUser is a placeholder for the unbanUser handler
-func UnbanUser() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username := c.Param("username")
 
-		var ban struct {
-			Banned string `json:"banned" validate:"required,min=3,max=16"`
-		}
+func UnbanUser(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// Convert the JSON data from the request to the 'user' struct
-		if err := c.ShouldBindJSON(&ban); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error1": err.Error()})
-			return
-		}
-
-		// Validate the data based on the 'user' struct
-
-		// Validate the data based on the 'user' struct
-		validationErr := validate.Struct(ban)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
-
-		db, _ := database.Ban()
-		defer db.Close()
-
-		_, err := db.Exec("DELETE FROM banlist WHERE who = ? AND whom = ? ", username, ban.Banned)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "user unbanned"})
+	// Read the JSON data from the request body
+	var ban struct {
+		Banned string `json:"banned" validate:"required,min=3,max=16"`
 	}
+	err := json.NewDecoder(r.Body).Decode(&ban)
+	if err != nil {
+		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate the data based on the 'ban' struct
+	validationErr := validate.Struct(ban)
+	if validationErr != nil {
+		http.Error(w, `{"error": "`+validationErr.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	db, err := database.Ban()
+	if err != nil {
+		log.Fatal("Failed to connect to the database: ", err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec("DELETE FROM banlist WHERE who = ? AND whom = ?", username, ban.Banned)
+	if err != nil {
+		log.Fatal("Error while deleting from banlist: ", err)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "User unbanned"}`))
 }
 
 // GetMyProfile is a placeholder for the getMyProfile handler
-func GetMyProfile() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username := c.Param("username")
+func GetMyProfile(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// convert the JSON data coming from postman to something that golang understands
-		db, _ := database.UpPhoto()
-		defer db.Close()
-		var profile models.Myprofile
-		var Ignore struct {
-			ignore int
-		}
-		var count int
-		var followerNo int
-		var followingNo int
-		err := db.QueryRow("SELECT COUNT(*) FROM photos WHERE username = ? ORDER BY date_time DESC", username).Scan(&count)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error1": "Database query error"})
-			return
-		}
-		err = db.QueryRow("SELECT COUNT(*) FROM followers WHERE following = ? ", username).Scan(&followerNo)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error2": "Database query error"})
-			return
-		}
-		err = db.QueryRow("SELECT COUNT(*) FROM followers WHERE follower = ? ", username).Scan(&followingNo)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error3": "Database query error"})
-			return
-		}
-		rows, err := db.Query("SELECT * FROM photos WHERE username = ? ORDER BY date_time DESC", username)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error4": "Database query error"})
-			return
-		}
-		var photos []models.Photo
-		for rows.Next() {
-			var photo models.Photo
-			err := rows.Scan(&photo.Username, &Ignore.ignore, &photo.Photobytes, &photo.CreatedAt, &photo.Likes, &photo.NoComments)
-			strphotonum := strconv.Itoa(Ignore.ignore)
-			photo.PhotoId = photo.Username + "_" + strphotonum
-			photo.Liked = CheckDislikeStatus(username, photo.PhotoId)
-			if err != nil {
-				log.Fatal(err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
-				return
-			}
-			photos = append(photos, photo)
-			// profile.PhotoNo = count
-			// profile.Followers = followerNo
-			// profile.Following = followingNo
-			// profile.Photos = photos
-		}
-		if err := rows.Err(); err != nil {
-			log.Fatal(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan row", "ERR": err})
-			return
-		}
-		profile.PhotoNo = count
-		profile.Followers = followerNo
-		profile.Following = followingNo
-		profile.Photos = photos
-		c.JSON(http.StatusOK, gin.H{"my profile": profile})
+	db, err := database.UpPhoto()
+	if err != nil {
+		log.Fatal("Failed to connect to the database: ", err)
 	}
+	defer db.Close()
+
+	var profile models.Myprofile
+	var Ignore struct {
+		ignore int
+	}
+	var count int
+	var followerNo int
+	var followingNo int
+
+	err = db.QueryRow("SELECT COUNT(*) FROM photos WHERE username = ? ORDER BY date_time DESC", username).Scan(&count)
+	if err != nil {
+		log.Fatal("Database query error: ", err)
+		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM followers WHERE following = ? ", username).Scan(&followerNo)
+	if err != nil {
+		log.Fatal("Database query error: ", err)
+		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM followers WHERE follower = ? ", username).Scan(&followingNo)
+	if err != nil {
+		log.Fatal("Database query error: ", err)
+		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	rows, err := db.Query("SELECT * FROM photos WHERE username = ? ORDER BY date_time DESC", username)
+	if err != nil {
+		log.Fatal("Database query error: ", err)
+		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var photos []models.Photo
+
+	for rows.Next() {
+		var photo models.Photo
+		err := rows.Scan(&photo.Username, &Ignore.ignore, &photo.Photobytes, &photo.CreatedAt, &photo.Likes, &photo.NoComments)
+		strphotonum := strconv.Itoa(Ignore.ignore)
+		photo.PhotoId = photo.Username + "_" + strphotonum
+		photo.Liked = CheckDislikeStatus(username, photo.PhotoId)
+
+		if err != nil {
+			log.Fatal("Failed to scan row: ", err)
+			http.Error(w, `{"error": "Failed to scan row", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		photos = append(photos, photo)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Fatal("Failed to scan row: ", err)
+		http.Error(w, `{"error": "Failed to scan row", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	profile.PhotoNo = count
+	profile.Followers = followerNo
+	profile.Following = followingNo
+	profile.Photos = photos
+
+	response, err := json.Marshal(map[string]interface{}{"my profile": profile})
+	fmt.Println(response, profile)
+	if err != nil {
+		log.Fatal("Failed to marshal response: ", err)
+		http.Error(w, `{"error": "Failed to marshal response", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+	log.Print("done", http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
+	fmt.Print(response)
 }
 
 func CheckDislikeStatus(username string, photoid string) int {
@@ -512,43 +597,58 @@ func CheckDislikeStatus(username string, photoid string) int {
 }
 
 // RemovePhoto is a placeholder for the removePhoto handler
-func RemovePhoto() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		username := c.Param("username")
-		var Photoid struct {
-			Photoid string `json:"photoid" binding:"required"`
-		}
+func RemovePhoto(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
 
-		// Convert the JSON data from the request to the 'user' struct
-		if err := c.ShouldBindQuery(&Photoid); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error2": err.Error()})
-			return
-		}
-		parts := strings.Split(Photoid.Photoid, "_")
-		photocode, err := strconv.Atoi(parts[1])
-		if err != nil {
-			// Handle the error if the conversion fails
-			log.Fatal(err)
-			return
-		}
-		db, _ := database.UpPhoto()
-		defer db.Close()
-		_, err = db.Exec("DELETE FROM photos WHERE username = ? AND photoNum = ? ", username, photocode)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-		_, err = db.Exec("DELETE FROM like WHERE photoid = ? ", Photoid.Photoid)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-		_, err = db.Exec("DELETE FROM comments WHERE photoid = ?", Photoid.Photoid)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "image removed successfully"})
+	var Photoid struct {
+		Photoid string `json:"photoid" binding:"required"`
 	}
+
+	// Read the JSON data from the query parameters
+	err := json.NewDecoder(r.Body).Decode(&Photoid)
+	if err != nil {
+		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+
+	parts := strings.Split(Photoid.Photoid, "_")
+	photocode, err := strconv.Atoi(parts[1])
+	if err != nil {
+		log.Fatal("Error converting photo code to integer: ", err)
+		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
+		return
+	}
+
+	db, err := database.UpPhoto()
+	if err != nil {
+		log.Fatal("Failed to connect to the database: ", err)
+		http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	_, err = db.Exec("DELETE FROM photos WHERE username = ? AND photoNum = ? ", username, photocode)
+	if err != nil {
+		log.Fatal("Error while deleting photo from photos table: ", err)
+		http.Error(w, `{"error": "Failed to delete photo from photos table"}`, http.StatusInternalServerError)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM like WHERE photoid = ? ", Photoid.Photoid)
+	if err != nil {
+		log.Fatal("Error while deleting photo from like table: ", err)
+		http.Error(w, `{"error": "Failed to delete photo from like table"}`, http.StatusInternalServerError)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM comments WHERE photoid = ?", Photoid.Photoid)
+	if err != nil {
+		log.Fatal("Error while deleting photo comments: ", err)
+		http.Error(w, `{"error": "Failed to delete photo comments"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Image removed successfully"}`))
 }

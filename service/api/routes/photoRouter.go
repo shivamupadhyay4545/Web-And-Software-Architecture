@@ -1,15 +1,39 @@
 package routes
 
 import (
-	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/controllers"
+	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/controllers"
 )
 
-func PhotoRoutes(incomingRoutes *gin.Engine) {
-	incomingRoutes.POST("/user/:username/photos/likes", controllers.LikePhoto())
-	incomingRoutes.DELETE("/user/:username/photos/likes", controllers.UnlikePhoto())
-	incomingRoutes.POST("/user/:username/photos/comment", controllers.CommentPhoto())
-	incomingRoutes.GET("/user/:username/photos/:PhotoId", controllers.GetPhoto())
-	incomingRoutes.DELETE("/user/:username/photos/comment", controllers.UncommentPhoto())
+func PhotoRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/user/:username/photos/likes", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			controllers.LikePhoto(w, r)
+		case "DELETE":
+			controllers.UnlikePhoto(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/user/:username/photos/comment", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			controllers.CommentPhoto(w, r)
+		case "DELETE":
+			controllers.UncommentPhoto(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/user/:username/photos/:PhotoId", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			controllers.GetPhoto(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 }

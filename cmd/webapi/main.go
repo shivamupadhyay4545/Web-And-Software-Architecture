@@ -1,38 +1,38 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 
+	"github.com/rs/cors"
 	routes "github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/routes"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
 
+	if 1 == 1 {
+		fmt.Println("done")
+	}
 	port := os.Getenv("PORT")
-
 	if port == "" {
 		port = "8080"
 	}
 
-	router := gin.New()
-	router.Use(gin.Logger())
+	mux := http.NewServeMux()
 
-	config := cors.DefaultConfig()
-	config.AllowAllOrigins = true
-	config.MaxAge = 1
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"} // Add other methods as needed
-	router.Use(cors.New(config))
+	// Apply CORS middleware with default settings
+	handler := cors.Default().Handler(mux)
 
-	routes.PhotoRoutes(router)
-	routes.UserRoutes(router)
+	// Define routes
+	routes.PhotoRoutes(mux)
+	routes.UserRoutes(mux)
 
-	err := router.Run(":" + port)
+	// Start the server
+	log.Printf("Server is listening on port %s...\n", port)
+	err := http.ListenAndServe(":"+port, handler)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 }
