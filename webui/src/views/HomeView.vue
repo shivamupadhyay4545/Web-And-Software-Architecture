@@ -74,7 +74,7 @@ export default {
         // Update dislikeStatus after toggling the like state
         
       } catch (error) {
-        console.error('Error while toggling like:', error.message);
+        console.error('Error while toggling like:', error.message,photoId);
       }
     },
     async postComment(PhotoId) {

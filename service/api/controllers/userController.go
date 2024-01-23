@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/models"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/database"
 
@@ -23,7 +24,6 @@ var validate = validator.New()
 // to close the tcp connection : lsof -i :8080 -> kill -9 <PID>
 
 func Dologin(w http.ResponseWriter, r *http.Request) {
-	// Assuming you still want to check the authorization header
 	// authHeader := r.Header.Get("Authorization")
 	// expectedToken := "Bearer [wasaphoto security]"
 	// if authHeader != expectedToken {
@@ -72,9 +72,10 @@ func Dologin(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"message": "User Login Done"}`))
 }
 
-func GetMyStream(w http.ResponseWriter, r *http.Request) {
+func GetMyStream(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Removed unused context and cancellation lines
-	username := r.URL.Query().Get("username")
+	username := ps.ByName("username")
+	fmt.Print(username)
 	var Ignore struct {
 		ignore int
 	}
@@ -130,15 +131,16 @@ func GetMyStream(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateUsername is a placeholder for the updateUsername handler
-func UpdateUsername(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func UpdateUsername(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 
 	var changeName struct {
-		Name    string `json:"name" validate:"required,min=3,max=16"`
-		Newname string `json:"newname" validate:"required,min=3,max=16"`
+		Name    string `json:"Name" validate:"required,min=3,max=16"`
+		Newname string `json:"Newname" validate:"required,min=3,max=16"`
 	}
 
 	// Decode JSON data coming from the request
+
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&changeName); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -207,9 +209,8 @@ func UpdateUsername(w http.ResponseWriter, r *http.Request) {
 
 // UploadPhoto is a placeholder for the uploadPhoto handler
 
-func UploadPhoto(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-
+func UploadPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 	// Parse the form data, including file uploads
 	err := r.ParseMultipartForm(10 << 20) // 10 MB limit
 	if err != nil {
@@ -293,8 +294,8 @@ func UploadPhoto(w http.ResponseWriter, r *http.Request) {
 }
 
 // FollowUser is a placeholder for the followUser handler
-func FollowUser(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func FollowUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 
 	// Read the JSON data from the request body
 	var follow struct {
@@ -355,8 +356,8 @@ func FollowUser(w http.ResponseWriter, r *http.Request) {
 
 // UnfollowUser is a placeholder for the unfollowUser handler
 
-func UnfollowUser(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func UnfollowUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 
 	// Read the JSON data from the request body
 	var follow struct {
@@ -402,8 +403,8 @@ func UnfollowUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // BanUser is a placeholder for the banUser handler
-func BanUser(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func BanUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 
 	// Read the JSON data from the request body
 	var ban struct {
@@ -449,8 +450,8 @@ func BanUser(w http.ResponseWriter, r *http.Request) {
 
 // UnbanUser is a placeholder for the unbanUser handler
 
-func UnbanUser(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func UnbanUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 
 	// Read the JSON data from the request body
 	var ban struct {
@@ -485,9 +486,8 @@ func UnbanUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetMyProfile is a placeholder for the getMyProfile handler
-func GetMyProfile(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-
+func GetMyProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 	db, err := database.UpPhoto()
 	if err != nil {
 		log.Fatal("Failed to connect to the database: ", err)
@@ -597,21 +597,12 @@ func CheckDislikeStatus(username string, photoid string) int {
 }
 
 // RemovePhoto is a placeholder for the removePhoto handler
-func RemovePhoto(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func RemovePhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
 
-	var Photoid struct {
-		Photoid string `json:"photoid" binding:"required"`
-	}
+	Photoid := r.URL.Query().Get("Photoid")
 
-	// Read the JSON data from the query parameters
-	err := json.NewDecoder(r.Body).Decode(&Photoid)
-	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.Split(Photoid.Photoid, "_")
+	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
 		log.Fatal("Error converting photo code to integer: ", err)
@@ -634,14 +625,14 @@ func RemovePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec("DELETE FROM like WHERE photoid = ? ", Photoid.Photoid)
+	_, err = db.Exec("DELETE FROM like WHERE photoid = ? ", Photoid)
 	if err != nil {
 		log.Fatal("Error while deleting photo from like table: ", err)
 		http.Error(w, `{"error": "Failed to delete photo from like table"}`, http.StatusInternalServerError)
 		return
 	}
 
-	_, err = db.Exec("DELETE FROM comments WHERE photoid = ?", Photoid.Photoid)
+	_, err = db.Exec("DELETE FROM comments WHERE photoid = ?", Photoid)
 	if err != nil {
 		log.Fatal("Error while deleting photo comments: ", err)
 		http.Error(w, `{"error": "Failed to delete photo comments"}`, http.StatusInternalServerError)

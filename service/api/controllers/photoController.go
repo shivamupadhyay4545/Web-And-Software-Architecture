@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -8,34 +9,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/models"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/database"
 )
 
-func LikePhoto(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
+func LikePhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
+	Photoid := r.URL.Query().Get("Photoid")
 
-	var Photoid struct {
-		Photoid string `json:"photoid" binding:"required"`
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&Photoid)
-	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.Split(Photoid.Photoid, "_")
+	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Fatal("Error converting photo code to integer: ", err)
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
 
 	db, err := database.Userlike()
 	if err != nil {
-		log.Fatal("Failed to connect to the database: ", err)
 		http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
 		return
 	}
@@ -43,41 +34,20 @@ func LikePhoto(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal("Failed to start transaction: ", err)
 		http.Error(w, `{"error": "Failed to start transaction"}`, http.StatusInternalServerError)
 		return
 	}
 
-	result, err := tx.Exec("INSERT OR IGNORE INTO like (photoid, likeuser) VALUES (?, ?)", Photoid.Photoid, username)
+	_, err = tx.Exec("INSERT OR IGNORE INTO like (photoid, likeuser) VALUES (?, ?)", Photoid, username)
 	if err != nil {
-		err := tx.Rollback()
-		if err != nil {
-			log.Fatal("Error rolling back transaction: ", err)
-		}
-		http.Error(w, `{"error": "Failed to execute INSERT statement"}`, http.StatusInternalServerError)
+		rollbackTransaction(tx, w, "Failed to execute INSERT statement")
 		return
 	}
 
-	rowsAffected, err := result.RowsAffected()
+	_, err = tx.Exec("UPDATE photos SET likes = likes+1 WHERE username = ? AND photoNum = ?", parts[0], photocode)
 	if err != nil {
-		err := tx.Rollback()
-		if err != nil {
-			log.Fatal("Error rolling back transaction: ", err)
-		}
-		http.Error(w, `{"error": "Failed to get affected rows"}`, http.StatusInternalServerError)
+		rollbackTransaction(tx, w, "Failed to execute UPDATE statement")
 		return
-	}
-
-	if rowsAffected > 0 {
-		_, err = tx.Exec("UPDATE photos SET likes = likes+1 WHERE username = ? AND photoNum = ?", parts[0], photocode)
-		if err != nil {
-			err := tx.Rollback()
-			if err != nil {
-				log.Fatal("Error rolling back transaction: ", err)
-			}
-			http.Error(w, `{"error": "Failed to execute UPDATE statement"}`, http.StatusInternalServerError)
-			return
-		}
 	}
 
 	err = tx.Commit()
@@ -91,45 +61,41 @@ func LikePhoto(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"message": "` + strconv.Itoa(photocode) + `", "abc": "Photo liked successfully"}`))
 }
 
-func UnlikePhoto(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-
-	var Photoid struct {
-		Photoid string `json:"photoid" binding:"required"`
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&Photoid)
+func rollbackTransaction(tx *sql.Tx, w http.ResponseWriter, errorMsg string) {
+	err := tx.Rollback()
 	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, `{"error": "Error rolling back transaction: `+errorMsg+`"}`, http.StatusInternalServerError)
 		return
 	}
+	http.Error(w, `{"error": "`+errorMsg+`"}`, http.StatusInternalServerError)
+}
 
-	parts := strings.Split(Photoid.Photoid, "_")
+func UnlikePhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
+	Photoid := r.URL.Query().Get("Photoid")
+
+	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Fatal("Error converting photo code to integer: ", err)
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
 
 	db, err := database.Userlike()
 	if err != nil {
-		log.Fatal("Failed to connect to the database: ", err)
 		http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
 
-	_, err = db.Exec("DELETE FROM like WHERE photoid = ? AND likeuser = ?", Photoid.Photoid, username)
+	_, err = db.Exec("DELETE FROM like WHERE photoid = ? AND likeuser = ?", Photoid, username)
 	if err != nil {
-		log.Fatal("Error deleting like entry: ", err)
 		http.Error(w, `{"error": "Failed to delete like entry"}`, http.StatusInternalServerError)
 		return
 	}
 
 	_, err = db.Exec("UPDATE photos SET likes = likes-1 WHERE username = ? AND photoNum = ?", parts[0], photocode)
 	if err != nil {
-		log.Fatal("Error updating photo likes count: ", err)
 		http.Error(w, `{"error": "Failed to update photo likes count"}`, http.StatusInternalServerError)
 		return
 	}
@@ -138,9 +104,9 @@ func UnlikePhoto(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Photo unliked successfully"}`))
 }
-func GetPhoto(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-	PhotoId := r.URL.Query().Get("PhotoId")
+func GetPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
+	PhotoId := ps.ByName("photoId")
 
 	parts := strings.Split(PhotoId, "_")
 	photocode, err := strconv.Atoi(parts[1])
@@ -241,12 +207,9 @@ func GetPhoto(w http.ResponseWriter, r *http.Request) {
 	w.Write(responseBytes)
 }
 
-func CommentPhoto(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-
-	var Photoid struct {
-		Photoid string `json:"photoid" binding:"required"`
-	}
+func CommentPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username := ps.ByName("username")
+	Photoid := r.URL.Query().Get("Photoid")
 
 	var comment models.Comment
 	err := json.NewDecoder(r.Body).Decode(&comment)
@@ -255,13 +218,7 @@ func CommentPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.NewDecoder(r.Body).Decode(&Photoid)
-	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.Split(Photoid.Photoid, "_")
+	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
 		log.Fatal("Error converting photo code to integer: ", err)
@@ -278,7 +235,7 @@ func CommentPhoto(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 
 	t := time.Now()
-	_, err = db.Exec("INSERT INTO comments (photoid, commentuser, comment, date_time) VALUES (?, ?, ?, ?)", Photoid.Photoid, username, comment.Content, t)
+	_, err = db.Exec("INSERT INTO comments (photoid, commentuser, comment, date_time) VALUES (?, ?, ?, ?)", Photoid, username, comment.Content, t)
 	if err != nil {
 		log.Fatal("Error inserting comment into database: ", err)
 		http.Error(w, `{"error": "Failed to insert comment into database"}`, http.StatusInternalServerError)
@@ -307,7 +264,7 @@ func CommentPhoto(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBytes)
 }
-func UncommentPhoto(w http.ResponseWriter, r *http.Request) {
+func UncommentPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var comment models.Comment
 	err := json.NewDecoder(r.Body).Decode(&comment)
 	if err != nil {
@@ -315,19 +272,10 @@ func UncommentPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := r.URL.Query().Get("username")
+	username := ps.ByName("username")
+	Photoid := r.URL.Query().Get("Photoid")
 
-	var Photoid struct {
-		Photoid string `json:"photoid" binding:"required"`
-	}
-
-	err = json.NewDecoder(r.Body).Decode(&Photoid)
-	if err != nil {
-		http.Error(w, `{"error2": "`+err.Error()+`"}`, http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.Split(Photoid.Photoid, "_")
+	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
 		log.Fatal("Error converting photo code to integer: ", err)
@@ -343,7 +291,7 @@ func UncommentPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	_, err = db.Exec("DELETE FROM comments WHERE photoid = ? AND commentuser = ? AND comment=?", Photoid.Photoid, username, comment.Content)
+	_, err = db.Exec("DELETE FROM comments WHERE photoid = ? AND commentuser = ? AND comment=?", Photoid, username, comment.Content)
 	if err != nil {
 		log.Fatal("Error deleting comment from database: ", err)
 		http.Error(w, `{"error": "Failed to delete comment from database"}`, http.StatusInternalServerError)

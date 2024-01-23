@@ -46,7 +46,7 @@
             this.errorMessage="Oh No!"
           }
         } catch (error) {
-          console.error('Error during username update:', error.message);
+          console.error('Error during username update:', this.name,this.newName);
           this.errorMessage =" Oh No!"
         }
       },

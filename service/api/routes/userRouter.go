@@ -3,66 +3,48 @@ package routes
 import (
 	"net/http"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/controllers"
 )
 
-func UserRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/session", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			controllers.Dologin(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+func UserRoutes(router *httprouter.Router) {
+	router.POST("/session", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		controllers.Dologin(w, r)
 	})
 
-	mux.HandleFunc("/user/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			controllers.GetMyStream(w, r)
-		case "PUT":
-			controllers.UpdateUsername(w, r)
-		case "POST":
-			controllers.UploadPhoto(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+	router.POST("/user/:username/follow_list", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.FollowUser(w, r, ps)
 	})
 
-	mux.HandleFunc("/user/follow_list", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "POST":
-			controllers.FollowUser(w, r)
-		case "DELETE":
-			controllers.UnfollowUser(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+	router.DELETE("/user/:username/follow_list", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.UnfollowUser(w, r, ps)
 	})
 
-	mux.HandleFunc("/user/ban_list", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "POST":
-			controllers.BanUser(w, r)
-		case "DELETE":
-			controllers.UnbanUser(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+	router.POST("/user/:username/ban_list", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.BanUser(w, r, ps)
 	})
 
-	mux.HandleFunc("/user/profile", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			controllers.GetMyProfile(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+	router.DELETE("/user/:username/ban_list", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.UnbanUser(w, r, ps)
 	})
 
-	mux.HandleFunc("/user/deleted_photos", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "DELETE" {
-			controllers.RemovePhoto(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+	router.GET("/user/:username/profile", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.GetMyProfile(w, r, ps)
+	})
+
+	router.DELETE("/user/:username/deleted_photos", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.RemovePhoto(w, r, ps)
+	})
+
+	router.GET("/user/:username", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.GetMyStream(w, r, ps)
+	})
+
+	router.PUT("/user/:username", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.UpdateUsername(w, r, ps)
+	})
+
+	router.POST("/user/:username", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		controllers.UploadPhoto(w, r, ps)
 	})
 }
