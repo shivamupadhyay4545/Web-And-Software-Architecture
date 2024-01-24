@@ -29,7 +29,7 @@
           const username = this.$route.params.username;
   
           // Make a POST request to unfollow the user
-          const response = await axios.delete(`http://localhost:8080/user/${username}/follow_list`, {
+          const response = await axios.delete(`/user/${username}/follow_list`, {
             data: {
                      following: this.unfollowUsername,
                  },

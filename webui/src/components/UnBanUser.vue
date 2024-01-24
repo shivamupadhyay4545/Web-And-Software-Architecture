@@ -29,7 +29,7 @@
           const username = this.$route.params.username;
   
           // Make a DELETE request to unban the user
-          const response = await axios.delete(`http://localhost:8080/user/${username}/ban_list`, {
+          const response = await axios.delete(`/user/${username}/ban_list`, {
             data: { banned: this.unbanUsername },
           });
   

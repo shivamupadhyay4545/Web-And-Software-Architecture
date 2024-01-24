@@ -29,7 +29,7 @@
           const currentUsername = this.$route.params.username;
   
           // Make a POST request to ban the user
-          const response = await axios.post(`http://localhost:8080/user/${currentUsername}/ban_list`, {
+          const response = await axios.post(`/user/${currentUsername}/ban_list`, {
             banned: this.banUsername,
           });
   

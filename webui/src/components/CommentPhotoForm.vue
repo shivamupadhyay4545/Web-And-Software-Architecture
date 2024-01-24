@@ -42,7 +42,7 @@
         const jsonPayload = { Content };
 
         const queryParamValue = this.PhotoId; // Replace with your actual query parameter value
-        const url = `http://localhost:8080/user/${this.username}/photos/comment?Photoid=${queryParamValue}`;
+        const url = `/user/${this.username}/photos/comment?Photoid=${queryParamValue}`;
 
         const response = await axios.delete(url, { data: jsonPayload });
 
@@ -63,7 +63,7 @@
     async deletePhoto() {
       try {
         // Assuming this.username, this.PhotoId, and other necessary values are defined
-        const url = `http://localhost:8080/user/${this.username}/deleted_photos?Photoid=${this.PhotoId}`;
+        const url = `/user/${this.username}/deleted_photos?Photoid=${this.PhotoId}`;
         
         const response = await axios.delete(url);
 
@@ -86,7 +86,7 @@
         try {
             const parts = this.PhotoId.split('_');
           // Make a GET request to fetch comments data
-          const response = await axios.get(`http://localhost:8080/user/${parts[0]}/photos/${this.PhotoId}`);
+          const response = await axios.get(`/user/${parts[0]}/photos/${this.PhotoId}`);
   
           // Update data with the fetched comments and photoBytes
           this.comments = response.data.comments;

@@ -29,8 +29,7 @@
       async updateUsername() {
         try {
           const username = this.$route.params.username;
-          
-          const response = await axios.put(`http://localhost:8080/user/${username}`, {
+          const response = await axios.put(`/user/${username}`, {
             Name: this.name,
             Newname: this.newName,
           });

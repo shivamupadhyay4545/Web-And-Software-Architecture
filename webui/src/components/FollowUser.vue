@@ -29,7 +29,7 @@
           const username = this.$route.params.username;
   
           // Make a POST request to follow the user
-          const response = await axios.post(`http://localhost:8080/user/${username}/follow_list`, {
+          const response = await axios.post(`/user/${username}/follow_list`, {
             following: this.followUsername,
           });
   
