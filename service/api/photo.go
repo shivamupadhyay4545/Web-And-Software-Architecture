@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,7 +22,7 @@ func (rt *_router) LikePhoto(w http.ResponseWriter, r *http.Request, ps httprout
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.Dolike(username, Photoid, parts[0], photocode, w)
+	rt.db.Dolike(username, Photoid, parts[0], photocode, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -42,7 +42,7 @@ func (rt *_router) UnlikePhoto(w http.ResponseWriter, r *http.Request, ps httpro
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.DoUnlike(username, Photoid, parts[0], photocode, w)
+	rt.db.DoUnlike(username, Photoid, parts[0], photocode, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -65,11 +65,12 @@ func (rt *_router) CommentPhoto(w http.ResponseWriter, r *http.Request, ps httpr
 	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Fatal("Error converting photo code to integer: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error converting photo code to integer:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.DoComment(username, Photoid, parts[0], photocode, comment.Content, w)
+	rt.db.DoComment(username, Photoid, parts[0], photocode, comment.Content, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -92,11 +93,12 @@ func (rt *_router) UncommentPhoto(w http.ResponseWriter, r *http.Request, ps htt
 	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Fatal("Error converting photo code to integer: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error converting photo code to integer:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.DounComment(username, Photoid, parts[0], photocode, comment.Content, w)
+	rt.db.DounComment(username, Photoid, parts[0], photocode, comment.Content, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -112,11 +114,12 @@ func (rt *_router) GetPhoto(w http.ResponseWriter, r *http.Request, ps httproute
 	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Fatal("Error converting photo code to integer: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error converting photo code to integer:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.Getphoto(username, Photoid, photocode, w)
+	rt.db.Getphoto(username, Photoid, photocode, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)

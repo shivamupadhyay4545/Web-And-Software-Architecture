@@ -5,7 +5,10 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",  
-    "build-prod": "vue-cli-service build --mode production",  
+    "build-dev": "vue-cli-service build --mode development",
+    "build-prod": "vue-cli-service build --mode production",
+    "build-embed": "vue-cli-service build --mode production --base=/dashboard/",
+		"preview": "vue-cli-service preview --port 4173",  
     "lint": "vue-cli-service lint"
   },
   "dependencies": {

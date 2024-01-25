@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -17,6 +17,7 @@ import (
 )
 
 var validate = validator.New()
+var write_err = "error writing response"
 
 func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 
@@ -26,7 +27,10 @@ func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&user); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "` + err.Error() + `"}`))
+		_, err := w.Write([]byte(err.Error()))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
@@ -35,10 +39,14 @@ func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter
 	validationErr := validate.Struct(user)
 	if validationErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "` + validationErr.Error() + `"}`))
+		_, err := w.Write([]byte(validationErr.Error()))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
+
 		return
 	}
-	rt.db.CreateUser(user.Name, user.Id, w)
+	rt.db.CreateUser(user.Name, user.Id, w, ctx)
 
 	// if err != nil {
 	// 	log.Fatal(err)
@@ -49,12 +57,15 @@ func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter
 
 	// Respond with a success message
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "User Login Done"}`))
+	_, err := w.Write([]byte(`{"message": "User Login Done"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
 func (rt *_router) GetMyStream(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	username := ps.ByName("username")
-	rt.db.Stream(username, w)
+	rt.db.Stream(username, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -64,7 +75,7 @@ func (rt *_router) GetMyStream(w http.ResponseWriter, r *http.Request, ps httpro
 }
 func (rt *_router) GetMyProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	username := ps.ByName("username")
-	rt.db.Profile(username, w)
+	rt.db.Profile(username, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -82,17 +93,19 @@ func (rt *_router) FollowUser(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 	err := json.NewDecoder(r.Body).Decode(&follow)
 	if err != nil {
-		log.Fatal(err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error decoding username:  %w", err).Error())
 		return
 	}
 
 	// Validate the data based on the 'follow' struct
 	validationErr := validate.Struct(follow)
 	if validationErr != nil {
-		log.Fatal(validationErr)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error validating following name:  %w", err).Error())
 		return
 	}
-	rt.db.Follow(username, follow.Following, w)
+	rt.db.Follow(username, follow.Following, w, ctx)
 	// if err != nil {
 	// 	http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
 	// 	return
@@ -108,17 +121,17 @@ func (rt *_router) UnfollowUser(w http.ResponseWriter, r *http.Request, ps httpr
 	}
 	err := json.NewDecoder(r.Body).Decode(&follow)
 	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Validate the data based on the 'follow' struct
 	validationErr := validate.Struct(follow)
 	if validationErr != nil {
-		http.Error(w, `{"error": "`+validationErr.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	}
-	rt.db.Unfollow(username, follow.Following, w)
+	rt.db.Unfollow(username, follow.Following, w, ctx)
 	// if err != nil {
 	// 	http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
 	// 	return
@@ -134,23 +147,26 @@ func (rt *_router) BanUser(w http.ResponseWriter, r *http.Request, ps httprouter
 	}
 	err := json.NewDecoder(r.Body).Decode(&ban)
 	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Validate the data based on the 'ban' struct
 	validationErr := validate.Struct(ban)
 	if validationErr != nil {
-		http.Error(w, `{"error": "`+validationErr.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	}
-	rt.db.Ban(username, ban.Banned, w)
-	if err != nil {
-		log.Fatal(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Internal Server Error"}`))
-		return
-	}
+	rt.db.Ban(username, ban.Banned, w, ctx)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	_, err := w.Write([]byte(`{"error": "Internal Server Error"}`))
+	// 	if err != nil {
+	// 		ctx.Logger.WithError(err).Error(write_err)
+	// 	}
+	// 	return
+	// }
 
 }
 func (rt *_router) UnbanUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
@@ -162,23 +178,26 @@ func (rt *_router) UnbanUser(w http.ResponseWriter, r *http.Request, ps httprout
 	}
 	err := json.NewDecoder(r.Body).Decode(&ban)
 	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Validate the data based on the 'ban' struct
 	validationErr := validate.Struct(ban)
 	if validationErr != nil {
-		http.Error(w, `{"error": "`+validationErr.Error()+`"}`, http.StatusBadRequest)
+		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	}
-	rt.db.UnBan(username, ban.Banned, w)
-	if err != nil {
-		log.Fatal(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Internal Server Error"}`))
-		return
-	}
+	rt.db.UnBan(username, ban.Banned, w, ctx)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	_, err := w.Write([]byte(`{"error": "Internal Server Error"}`))
+	// 	if err != nil {
+	// 		ctx.Logger.WithError(err).Error(write_err)
+	// 	}
+	// 	return
+	// }
 }
 func (rt *_router) RemovePhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	username := ps.ByName("username")
@@ -188,11 +207,12 @@ func (rt *_router) RemovePhoto(w http.ResponseWriter, r *http.Request, ps httpro
 	parts := strings.Split(Photoid, "_")
 	photocode, err := strconv.Atoi(parts[1])
 	if err != nil {
-		log.Fatal("Error converting photo code to integer: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error converting photo code to integer:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.DelPhoto(username, photocode, Photoid, w)
+	rt.db.DelPhoto(username, photocode, Photoid, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -214,7 +234,10 @@ func (rt *_router) UpdateUsername(w http.ResponseWriter, r *http.Request, ps htt
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&changeName); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error1": "` + err.Error() + `"}`))
+		_, err := w.Write([]byte(err.Error()))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
@@ -223,10 +246,13 @@ func (rt *_router) UpdateUsername(w http.ResponseWriter, r *http.Request, ps htt
 	validationErr := validate.Struct(changeName)
 	if validationErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error1": "` + validationErr.Error() + `"}`))
+		_, err := w.Write([]byte(validationErr.Error()))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
-	rt.db.ChangeUserName(changeName.Name, changeName.Newname, username, w)
+	rt.db.ChangeUserName(changeName.Name, changeName.Newname, username, w, ctx)
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -241,7 +267,10 @@ func (rt *_router) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httpro
 	err := r.ParseMultipartForm(10 << 20) // 10 MB limit
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "Unable to parse form data"}`))
+		_, err := w.Write([]byte(`{"error": "Unable to parse form data"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
@@ -249,7 +278,10 @@ func (rt *_router) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httpro
 	file, handler, err := r.FormFile("image")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "Missing or invalid image file in the request"}`))
+		_, err := w.Write([]byte(`{"error": "Missing or invalid image file in the request"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 	defer file.Close()
@@ -259,7 +291,10 @@ func (rt *_router) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httpro
 	ext := filepath.Ext(handler.Filename)
 	if ext == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "Invalid file name"}`))
+		_, err := w.Write([]byte(`{"error": "Invalid file name"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 	ext = strings.ToLower(filepath.Ext(handler.Filename)[1:])
@@ -272,7 +307,10 @@ func (rt *_router) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 	if !isValidExtension {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte(`{"error": "Only PNG, JPG, and JPEG images are allowed"}`))
+		_, err := w.Write([]byte(`{"error": "Only PNG, JPG, and JPEG images are allowed"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
@@ -280,13 +318,19 @@ func (rt *_router) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httpro
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Failed to read the file", "details": "` + err.Error() + `"}`))
+		_, err := w.Write([]byte(`{"error": "Failed to read the file", "details": "` + err.Error() + `"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
-	rt.db.UpPhoto(username, fileBytes, w)
+	rt.db.UpPhoto(username, fileBytes, w, ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Failed to connect to the database"}`))
+		_, err := w.Write([]byte(`{"error": "Failed to connect to the database"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 }

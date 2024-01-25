@@ -40,6 +40,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/reqcontext"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/models"
 	"github.com/sirupsen/logrus"
 )
@@ -53,36 +54,39 @@ type AppDatabase interface {
 
 	Ping() error
 
-	CreateUser(userName string, userif string, w http.ResponseWriter)
+	CreateUser(userName string, userif string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Stream(username string, w http.ResponseWriter)
+	Stream(username string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	ChangeUserName(Newname string, Name string, username string, w http.ResponseWriter)
+	ChangeUserName(Newname string, Name string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	UpPhoto(username string, fileBytes []byte, w http.ResponseWriter)
+	UpPhoto(username string, fileBytes []byte, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Follow(username string, following string, w http.ResponseWriter)
+	Follow(username string, following string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Unfollow(username string, following string, w http.ResponseWriter)
+	Unfollow(username string, following string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Ban(username string, banned string, w http.ResponseWriter)
+	Ban(username string, banned string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	UnBan(username string, banned string, w http.ResponseWriter)
+	UnBan(username string, banned string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Profile(username string, w http.ResponseWriter)
+	Profile(username string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	DelPhoto(username string, photocode int, Photoid string, w http.ResponseWriter)
+	DelPhoto(username string, photocode int, Photoid string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Dolike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter)
+	Dolike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	DoUnlike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter)
+	DoUnlike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	Getphoto(username string, Photoid string, photocode int, w http.ResponseWriter)
+	Getphoto(username string, Photoid string, photocode int, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	DoComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter)
+	DoComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	DounComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter)
+	DounComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 }
+
+var write_err = "error writing response"
+var row_err = `{"error": "Failed to scan row", "ERR": "`
 
 type appdbimpl struct {
 	c *sql.DB
@@ -170,26 +174,37 @@ func (db *appdbimpl) Ping() error {
 	return db.c.Ping()
 }
 
-func (db *appdbimpl) CreateUser(userName string, userid string, w http.ResponseWriter) {
+var server_error = "internal server error:  %w"
+
+func (db *appdbimpl) CreateUser(userName string, userid string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	_, err := db.c.Exec("INSERT OR IGNORE INTO users (username, name) VALUES (?, ?)", userid, userName)
 	if err != nil {
-		log.Fatal(err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Internal Server Error"}`))
+		_, err := w.Write([]byte(`{"error": "Internal Server Error"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
 }
 
-func (db *appdbimpl) Stream(userName string, w http.ResponseWriter) {
+func (db *appdbimpl) Stream(userName string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var Ignore struct {
 		ignore int
 	}
 	rows, err := db.c.Query("SELECT photos.username,photos.photoNum,photos.photo, photos.date_time,photos.likes,photos.comments FROM photos INNER JOIN followers ON photos.username = followers.following WHERE followers.follower = ?", userName)
 	if err != nil {
-		log.Fatal(err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error converting photo code to integer:  %w", err).Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Failed to execute query"}`))
+		_, err := w.Write([]byte(`{"error": "Failed to execute query"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
+
 		return
 	}
 	defer rows.Close()
@@ -198,8 +213,9 @@ func (db *appdbimpl) Stream(userName string, w http.ResponseWriter) {
 		var photo models.Photo
 		err := rows.Scan(&photo.Username, &Ignore.ignore, &photo.Photobytes, &photo.CreatedAt, &photo.Likes, &photo.NoComments)
 		if err != nil {
-			log.Fatal("Failed to scan row: ", err)
-			http.Error(w, `{"error": "Failed to scan row", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf("failed to scan row:  %w", err).Error())
+			http.Error(w, row_err+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 		strphotonum := strconv.Itoa(Ignore.ignore)
@@ -207,61 +223,88 @@ func (db *appdbimpl) Stream(userName string, w http.ResponseWriter) {
 		var likec int
 		err = db.c.QueryRow("SELECT COUNT(*) FROM like WHERE likeuser = ? AND photoid = ?", userName, photo.PhotoId).Scan(&likec)
 		if err != nil {
-			log.Fatal(err)
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
 		}
 		photo.Liked = likec
-		if err != nil {
-			log.Fatal(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error": "Failed to scan row", "ERR": "` + err.Error() + `"}`))
-			return
-		}
+		// if err != nil {
+		// 	log.Fatal(err)
+		// 	w.WriteHeader(http.StatusInternalServerError)
+		// 	_, err := w.Write([]byte(row_err + err.Error() ))
+		// 	if err != nil {
+		// 		ctx.Logger.WithError(err).Error(write_err)
+		// 	}
+		// 	return
+		//}
 		photos = append(photos, photo)
 	}
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Failed to scan row", "ERR": "` + err.Error() + `"}`))
+		_, err := w.Write([]byte(row_err + err.Error()))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 	// Return the result to the client
 	responseJSON, err := json.Marshal(map[string]interface{}{"photos": photos})
 	if err != nil {
-		log.Fatal(err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("marshaling error:  %w", err).Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Failed to marshal response"}`))
+		_, err := w.Write([]byte(`{"error": "Failed to marshal response"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(responseJSON)
+	_, err = w.Write(responseJSON)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) ChangeUserName(Newname string, Name string, username string, w http.ResponseWriter) {
+func (db *appdbimpl) ChangeUserName(Newname string, Name string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var count int
 	err := db.c.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Database query error"}`))
+		_, err := w.Write([]byte(`{"error": "Database query error"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
 	if count != 1 {
 		w.WriteHeader(http.StatusConflict)
-		w.Write([]byte(`{"error": "username conflict error"}`))
+		_, err := w.Write([]byte(`{"error": "username conflict error"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
 	err = db.c.QueryRow("SELECT COUNT(*) FROM users WHERE name = ?", Name).Scan(&count)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Database query error"}`))
+		_, err := w.Write([]byte(`{"error": "Database query error"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
 	if count != 1 {
 		w.WriteHeader(http.StatusConflict)
-		w.Write([]byte(`{"error": "username conflict error"}`))
+		_, err := w.Write([]byte(`{"error": "username conflict error"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
@@ -269,22 +312,31 @@ func (db *appdbimpl) ChangeUserName(Newname string, Name string, username string
 	_, err = db.c.Exec("UPDATE users SET name = ? WHERE name = ? and username = ?", Newname, Name, username)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Error while updating database"}`))
+		_, err := w.Write([]byte(`{"error": "Error while updating database"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
 	// Respond with a success message
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "Username updated successfully"}`))
+	_, err = w.Write([]byte(`{"message": "Username updated successfully"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) UpPhoto(username string, fileBytes []byte, w http.ResponseWriter) {
+func (db *appdbimpl) UpPhoto(username string, fileBytes []byte, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 
 	var count int
 	err := db.c.QueryRow("SELECT COUNT(*) FROM photos WHERE username = ?", username).Scan(&count)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Database query error"}`))
+		_, err := w.Write([]byte(`{"error": "Database query error"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
@@ -296,20 +348,26 @@ func (db *appdbimpl) UpPhoto(username string, fileBytes []byte, w http.ResponseW
 	_, err = db.c.Exec("INSERT INTO photos (username, photoNum, photo, date_time) VALUES (?,?,?,?)", username, count, fileBytes, t)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error": "Failed to store the file in the database", "details": "` + err.Error() + `"}`))
+		_, err := w.Write([]byte(`{"error": "Failed to store the file in the database", "details": "` + err.Error() + `"}`))
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
 		return
 	}
 
 	// Respond with a success message
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(`{"message": "Successfully uploaded and stored the photo", "user": "` + username + `"}`))
+	_, err = w.Write([]byte(`{"message": "Successfully uploaded and stored the photo", "user": "` + username + `"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) Follow(username string, following string, w http.ResponseWriter) {
+func (db *appdbimpl) Follow(username string, following string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var count int
 	err := db.c.QueryRow("SELECT COUNT(*) FROM banlist WHERE who = ? AND whom = ?", username, following).Scan(&count)
 	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -331,19 +389,23 @@ func (db *appdbimpl) Follow(username string, following string, w http.ResponseWr
 
 	_, err = db.c.Exec("INSERT OR IGNORE INTO followers (follower, following) VALUES (?,?)", username, following)
 	if err != nil {
-		http.Error(w, `{"error": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "User successfully followed"}`))
+	_, err = w.Write([]byte(`{"message": "User successfully followed"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) Unfollow(username string, following string, w http.ResponseWriter) {
+func (db *appdbimpl) Unfollow(username string, following string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var count int
 	err := db.c.QueryRow("SELECT COUNT(*) FROM followers WHERE follower = ? AND following = ?", username, following).Scan(&count)
 	if err != nil {
-		log.Fatal("Database query error: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 	}
 
 	if count != 1 {
@@ -353,42 +415,56 @@ func (db *appdbimpl) Unfollow(username string, following string, w http.Response
 
 	_, err = db.c.Exec("DELETE FROM followers WHERE follower = ? AND following = ?", username, following)
 	if err != nil {
-		log.Fatal("Error unfollowing user: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error unfollowing user:  %w", err).Error())
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "User successfully unfollowed"}`))
+	_, err = w.Write([]byte(`{"message": "User successfully unfollowed"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) Ban(username string, banned string, w http.ResponseWriter) {
+func (db *appdbimpl) Ban(username string, banned string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	_, err := db.c.Exec("INSERT OR IGNORE INTO banlist (who, whom) VALUES (?, ?)", username, banned)
 	if err != nil {
-		log.Fatal("Error while inserting into banlist: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error while inserting into banlist  %w", err).Error())
 	}
 
 	_, err = db.c.Exec("DELETE FROM followers WHERE follower = ? AND following = ?", username, banned)
 	if err != nil {
-		log.Fatal("Error while deleting from followers: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error while deleting from followlist:  %w", err).Error())
 	}
 
 	_, err = db.c.Exec("DELETE FROM followers WHERE follower = ? AND following = ?", banned, username)
 	if err != nil {
-		log.Fatal("Error while deleting from followers: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error while deleting from followlist:  %w", err).Error())
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "BanUser successful"}`))
+	_, err = w.Write([]byte(`{"message": "BanUser successful"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
-func (db *appdbimpl) UnBan(username string, banned string, w http.ResponseWriter) {
+func (db *appdbimpl) UnBan(username string, banned string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	_, err := db.c.Exec("DELETE FROM banlist WHERE who = ? AND whom = ?", username, banned)
 	if err != nil {
-		log.Fatal("Error while deleting from banlist: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("error while deleting from banlist:  %w", err).Error())
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "User unbanned"}`))
+	_, err = w.Write([]byte(`{"message": "User unbanned"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
-func (db *appdbimpl) Profile(username string, w http.ResponseWriter) {
+func (db *appdbimpl) Profile(username string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var profile models.Myprofile
 	var Ignore struct {
 		ignore int
@@ -399,28 +475,32 @@ func (db *appdbimpl) Profile(username string, w http.ResponseWriter) {
 
 	err := db.c.QueryRow("SELECT COUNT(*) FROM photos WHERE username = ? ORDER BY date_time DESC", username).Scan(&count)
 	if err != nil {
-		log.Fatal("Database query error: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	err = db.c.QueryRow("SELECT COUNT(*) FROM followers WHERE following = ? ", username).Scan(&followerNo)
 	if err != nil {
-		log.Fatal("Database query error: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	err = db.c.QueryRow("SELECT COUNT(*) FROM followers WHERE follower = ? ", username).Scan(&followingNo)
 	if err != nil {
-		log.Fatal("Database query error: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
 		return
 	}
 
 	rows, err := db.c.Query("SELECT * FROM photos WHERE username = ? ORDER BY date_time DESC", username)
 	if err != nil {
-		log.Fatal("Database query error: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Database query error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -432,8 +512,9 @@ func (db *appdbimpl) Profile(username string, w http.ResponseWriter) {
 		var photo models.Photo
 		err := rows.Scan(&photo.Username, &Ignore.ignore, &photo.Photobytes, &photo.CreatedAt, &photo.Likes, &photo.NoComments)
 		if err != nil {
-			log.Fatal("Failed to scan row: ", err)
-			http.Error(w, `{"error": "Failed to scan row", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
+			http.Error(w, row_err+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 		strphotonum := strconv.Itoa(Ignore.ignore)
@@ -441,13 +522,15 @@ func (db *appdbimpl) Profile(username string, w http.ResponseWriter) {
 		var likec int
 		err = db.c.QueryRow("SELECT COUNT(*) FROM like WHERE likeuser = ? AND photoid = ?", username, photo.PhotoId).Scan(&likec)
 		if err != nil {
-			log.Fatal(err)
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
 		}
 		photo.Liked = likec
 
 		if err != nil {
-			log.Fatal("Failed to scan row: ", err)
-			http.Error(w, `{"error": "Failed to scan row", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
+			http.Error(w, row_err+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
 
@@ -455,8 +538,9 @@ func (db *appdbimpl) Profile(username string, w http.ResponseWriter) {
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Fatal("Failed to scan row: ", err)
-		http.Error(w, `{"error": "Failed to scan row", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
+		http.Error(w, row_err+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -466,47 +550,55 @@ func (db *appdbimpl) Profile(username string, w http.ResponseWriter) {
 	profile.Photos = photos
 
 	response, err := json.Marshal(map[string]interface{}{"my profile": profile})
-	fmt.Println(response, profile)
 	if err != nil {
-		log.Fatal("Failed to marshal response: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("unmarshal error:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to marshal response", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
 	log.Print("done", http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(response)
-	fmt.Print(response)
+	_, err = w.Write(response)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) DelPhoto(username string, photocode int, Photoid string, w http.ResponseWriter) {
+func (db *appdbimpl) DelPhoto(username string, photocode int, Photoid string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	_, err := db.c.Exec("DELETE FROM photos WHERE username = ? AND photoNum = ? ", username, photocode)
 	if err != nil {
-		log.Fatal("Error while deleting photo from photos table: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to delete photo from photos table"}`, http.StatusInternalServerError)
 		return
 	}
 
 	_, err = db.c.Exec("DELETE FROM like WHERE photoid = ? ", Photoid)
 	if err != nil {
-		log.Fatal("Error while deleting photo from like table: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to delete photo from like table"}`, http.StatusInternalServerError)
 		return
 	}
 
 	_, err = db.c.Exec("DELETE FROM comments WHERE photoid = ?", Photoid)
 	if err != nil {
-		log.Fatal("Error while deleting photo comments: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to delete photo comments"}`, http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "Image removed successfully"}`))
+	_, err = w.Write([]byte(`{"message": "Image removed successfully"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) Dolike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter) {
+func (db *appdbimpl) Dolike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	tx, err := db.c.Begin()
 	if err != nil {
 		http.Error(w, `{"error": "Failed to start transaction"}`, http.StatusInternalServerError)
@@ -533,7 +625,10 @@ func (db *appdbimpl) Dolike(username string, Photoid string, parts string, photo
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "` + strconv.Itoa(photocode) + `", "abc": "Photo liked successfully"}`))
+	_, err = w.Write([]byte(`{"message": "` + strconv.Itoa(photocode) + `", "abc": "Photo liked successfully"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 func rollbackTransaction(tx *sql.Tx, w http.ResponseWriter, errorMsg string) {
 	err := tx.Rollback()
@@ -541,10 +636,10 @@ func rollbackTransaction(tx *sql.Tx, w http.ResponseWriter, errorMsg string) {
 		http.Error(w, `{"error": "Error rolling back transaction: `+errorMsg+`"}`, http.StatusInternalServerError)
 		return
 	}
-	http.Error(w, `{"error": "`+errorMsg+`"}`, http.StatusInternalServerError)
+	http.Error(w, errorMsg, http.StatusInternalServerError)
 }
 
-func (db *appdbimpl) DoUnlike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter) {
+func (db *appdbimpl) DoUnlike(username string, Photoid string, parts string, photocode int, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	_, err := db.c.Exec("DELETE FROM like WHERE photoid = ? AND likeuser = ?", Photoid, username)
 	if err != nil {
 		http.Error(w, `{"error": "Failed to delete like entry"}`, http.StatusInternalServerError)
@@ -559,13 +654,17 @@ func (db *appdbimpl) DoUnlike(username string, Photoid string, parts string, pho
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "Photo unliked successfully"}`))
+	_, err = w.Write([]byte(`{"message": "Photo unliked successfully"}`))
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w http.ResponseWriter) {
+func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	stmt, err := db.c.Prepare("SELECT photos.photo FROM photos WHERE username = ? AND photoNum = ?")
 	if err != nil {
-		log.Fatal("Error preparing SQL statement: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to prepare SQL statement"}`, http.StatusInternalServerError)
 		return
 	}
@@ -575,7 +674,8 @@ func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w 
 	var photodata []byte
 	err = row.Scan(&photodata)
 	if err != nil {
-		log.Fatal("Error scanning photo data: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to scan photo data"}`, http.StatusInternalServerError)
 		return
 	}
@@ -583,7 +683,8 @@ func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w 
 	photoid := Photoid
 	stmt, err = db.c.Prepare("SELECT * FROM comments WHERE photoid = ? ORDER BY date_time")
 	if err != nil {
-		log.Fatal("Error preparing SQL statement for comments: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to prepare SQL statement for comments"}`, http.StatusInternalServerError)
 		return
 	}
@@ -591,7 +692,8 @@ func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w 
 
 	rows, err := stmt.Query(photoid)
 	if err != nil {
-		log.Fatal("Error querying comments: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to query comments"}`, http.StatusInternalServerError)
 		return
 	}
@@ -613,7 +715,8 @@ func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w 
 		var now Comment
 		err := rows.Scan(&now.Photoid, &now.CommentUser, &now.Comment, &now.DateTime)
 		if err != nil {
-			log.Fatal("Error scanning comment row: ", err)
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
 			http.Error(w, `{"error": "Failed to scan comment row"}`, http.StatusInternalServerError)
 			return
 		}
@@ -624,7 +727,8 @@ func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w 
 
 	// Check for errors from iterating over rows
 	if err := rows.Err(); err != nil {
-		log.Fatal("Error iterating over comment rows: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to iterate over comment rows"}`, http.StatusInternalServerError)
 		return
 	}
@@ -636,27 +740,33 @@ func (db *appdbimpl) Getphoto(username string, Photoid string, photocode int, w 
 
 	responseBytes, err := json.Marshal(responseJSON)
 	if err != nil {
-		log.Fatal("Error marshalling response JSON: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("unmarshal error:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to marshal response JSON"}`, http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(responseBytes)
+	_, err = w.Write(responseBytes)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
-func (db *appdbimpl) DoComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter) {
+func (db *appdbimpl) DoComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	t := time.Now()
 	_, err := db.c.Exec("INSERT INTO comments (photoid, commentuser, comment, date_time) VALUES (?, ?, ?, ?)", Photoid, username, comment, t)
 	if err != nil {
-		log.Fatal("Error inserting comment into database: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to insert comment into database"}`, http.StatusInternalServerError)
 		return
 	}
 
 	_, err = db.c.Exec("UPDATE photos SET comments = comments+1 WHERE username = ? AND photoNum = ?", parts, photocode)
 	if err != nil {
-		log.Fatal("Error updating photo comments count: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to update photo comments count"}`, http.StatusInternalServerError)
 		return
 	}
@@ -667,27 +777,33 @@ func (db *appdbimpl) DoComment(username string, Photoid string, parts string, ph
 
 	responseBytes, err := json.Marshal(responseJSON)
 	if err != nil {
-		log.Fatal("Error marshalling response JSON: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("marshalling error:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to marshal response JSON"}`, http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(responseBytes)
+	_, err = w.Write(responseBytes)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
 
-func (db *appdbimpl) DounComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter) {
+func (db *appdbimpl) DounComment(username string, Photoid string, parts string, photocode int, comment string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	_, err := db.c.Exec("DELETE FROM comments WHERE photoid = ? AND commentuser = ? AND comment=?", Photoid, username, comment)
 	if err != nil {
-		log.Fatal("Error deleting comment from database: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to delete comment from database"}`, http.StatusInternalServerError)
 		return
 	}
 
 	_, err = db.c.Exec("UPDATE photos SET comments = comments-1 WHERE username = ? AND photoNum =?", parts[0], photocode)
 	if err != nil {
-		log.Fatal("Error updating photo comments count: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf(server_error, err).Error())
 		http.Error(w, `{"error": "Failed to update photo comments count"}`, http.StatusInternalServerError)
 		return
 	}
@@ -698,12 +814,16 @@ func (db *appdbimpl) DounComment(username string, Photoid string, parts string, 
 
 	responseBytes, err := json.Marshal(responseJSON)
 	if err != nil {
-		log.Fatal("Error marshalling response JSON: ", err)
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("marshalling comment error:  %w", err).Error())
 		http.Error(w, `{"error": "Failed to marshal response JSON"}`, http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(responseBytes)
+	_, err = w.Write(responseBytes)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
 }
