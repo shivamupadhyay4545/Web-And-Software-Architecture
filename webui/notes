@@ -1,7 +1,0 @@
-how to make routes:
-1)go to router.js and create routes using path ,name and component 
-ex: path: '/Home', name: 'Home', component: Home 
-
-2) create that component 
-
-3) import that component into router.js

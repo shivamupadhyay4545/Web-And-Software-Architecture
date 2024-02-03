@@ -24,7 +24,7 @@ export default {
   methods: {
     async login() {
       try {
-        const response = await axios.post('/session', {
+        const response = await axios.post('http://localhost:3000/session', {
           id: this.id,
           name: this.name,
         });
