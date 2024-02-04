@@ -11,7 +11,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+// import axios from 'axios';
 
 export default {
   name: 'LoginForm',
@@ -24,7 +24,7 @@ export default {
   methods: {
     async login() {
       try {
-        const response = await axios.post('http://localhost:3000/session', {
+        const response = await this.$axios.post('/session', {
           id: this.id,
           name: this.name,
         });

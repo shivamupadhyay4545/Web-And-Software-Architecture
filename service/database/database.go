@@ -268,7 +268,7 @@ func (db *appdbimpl) Stream(userName string, w http.ResponseWriter, ctx reqconte
 	}
 }
 
-func (db *appdbimpl) ChangeUserName(Newname string, Name string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
+func (db *appdbimpl) ChangeUserName(Name string, Newname string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var count int
 	err := db.c.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
 	if err != nil {
@@ -800,7 +800,7 @@ func (db *appdbimpl) DounComment(username string, Photoid string, parts string, 
 		return
 	}
 
-	_, err = db.c.Exec("UPDATE photos SET comments = comments-1 WHERE username = ? AND photoNum =?", parts[0], photocode)
+	_, err = db.c.Exec("UPDATE photos SET comments = comments-1 WHERE username = ? AND photoNum =?", parts, photocode)
 	if err != nil {
 		ctx.Logger.WithError(err).Error(
 			fmt.Errorf(server_error, err).Error())

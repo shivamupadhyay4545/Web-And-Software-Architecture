@@ -13,7 +13,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   
   export default {
     data() {
@@ -29,7 +29,7 @@
           const currentUsername = this.$route.params.username;
   
           // Make a POST request to ban the user
-          const response = await axios.post(`/user/${currentUsername}/ban_list`, {
+          const response = await this.$axios.post(`/user/${currentUsername}/ban_list`, {
             banned: this.banUsername,
           });
   

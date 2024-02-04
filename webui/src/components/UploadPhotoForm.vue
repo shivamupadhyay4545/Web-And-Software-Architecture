@@ -11,7 +11,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   
   export default {
     data() {
@@ -42,7 +42,7 @@
           const formData = new FormData();
           formData.append('image', this.photoFile);
   
-          const response = await axios.post(`/user/${username}`, formData, {
+          const response = await this.$axios.post(`/user/${username}/`, formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
             },
@@ -54,7 +54,7 @@
             this.photoSelected = false;
             window.location.reload();
           } else {
-            console.error('Failed to upload photo:', response.statusText);
+            console.error('Failed to upload photo:', response.status, response.message);
           }
         } catch (error) {
           console.error('Error during photo upload:', error.message);

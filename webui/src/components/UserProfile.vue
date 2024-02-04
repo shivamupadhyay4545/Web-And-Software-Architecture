@@ -62,7 +62,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   import moment from 'moment';
   
   export default {
@@ -79,7 +79,7 @@
       async fetchUserProfile() {
         try {
           const username = this.$route.params.username;
-          const response = await axios.get(`/user/${username}/profile`);
+          const response = await this.$axios.get(`/user/${username}/profile`);
           const data = response.data;
           console.log(data)
           this.numberOfPhotos = data['my profile']['PhotoNo'];
@@ -105,7 +105,7 @@
       async postComment(PhotoId) {
         try {
           const username = this.$route.params.username;
-          const response = await axios.post(
+          const response = await this.$axios.post(
             `/user/${username}/photos/comment?Photoid=${PhotoId}`,
             {
               content: this.commentInput,
@@ -138,10 +138,10 @@
   
           if (liked) {
             // Send DELETE request to unlike the photo
-            await axios.delete(`/user/${username}/photos/likes?Photoid=${photoId}`);
+            await this.$axios.delete(`/user/${username}/photos/likes?Photoid=${photoId}`);
           } else {
             // Send POST request to like the photo
-            await axios.post(`/user/${username}/photos/likes?Photoid=${photoId}`);
+            await this.$axios.post(`/user/${username}/photos/likes?Photoid=${photoId}`);
           }
           window.location.reload();
           // Update dislikeStatus after toggling the like state

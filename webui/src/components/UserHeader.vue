@@ -84,7 +84,6 @@
   }
   .nav {
     background-color: aqua;
-    overflow: hidden;
     margin-top: 0%;
     height: 50px;
     font-size: large;

@@ -1,4 +1,4 @@
-        CREATE TABLE IF NOT EXISTS users (
+        `CREATE TABLE IF NOT EXISTS users (
 			username TEXT PRIMARY KEY,
 			name TEXT
 		);
@@ -32,4 +32,4 @@
 			who TEXT NOT NULL,
 			whom TEXT NOT NULL,
 			PRIMARY KEY (who, whom)
-		);
+		);`

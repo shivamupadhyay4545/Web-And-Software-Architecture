@@ -14,7 +14,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   
   export default {
     data() {
@@ -29,7 +29,7 @@
       async updateUsername() {
         try {
           const username = this.$route.params.username;
-          const response = await axios.put(`/user/${username}`, {
+          const response = await this.$axios.put(`/user/${username}/`, {
             Name: this.name,
             Newname: this.newName,
           });
@@ -39,14 +39,23 @@
             this.name = '';
             this.newName = '';
             this.successMessage = "Username Updated Successfully"
+            setTimeout(() => {
+              this.successMessage = '';
+            }, 5000);
             // You can perform additional actions on successful update
           } else {
             console.error('Failed to update username:', response.statusText);
             this.errorMessage="Oh No!"
+            setTimeout(() => {
+              this.errorMessage = '';
+            }, 5000);
           }
         } catch (error) {
           console.error('Error during username update:', this.name,this.newName);
           this.errorMessage =" Oh No!"
+          setTimeout(() => {
+              this.errorMessage = '';
+            }, 5000);
         }
       },
     },

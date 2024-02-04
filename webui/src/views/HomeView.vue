@@ -1,7 +1,6 @@
 <template>
   <div>
     <UserHeader />
-    <UploadPhotoForm />
     <h1 class="main-title">Hello User, Welcome to your feed</h1>
     <router-link :to="{ name: 'UserProfile', params: { username: $route.params.username } }">
       Go to User Profile
@@ -36,16 +35,26 @@
 </template>
 
 <script>
-import axios from 'axios';
+// import axios from 'axios';
 import UserHeader from '../components/UserHeader.vue';
 import moment from 'moment';
-import UploadPhotoForm from '../components/UploadPhotoForm.vue';
+// import UploadPhotoForm from '../components/UploadPhotoForm.vue';
+// import FollowUser from '../components/FollowUser.vue';
+// import UnFollowUser from '../components/UnFollowUser.vue';
+// import BanUser from '../components/BanUser.vue';
+// import UnBanUser from '../components/UnBanUser.vue';
+// import UpdateUsernameForm from '../components/UpdateUsernameForm.vue';
 
 export default {
   components: {
-    UserHeader,
-    UploadPhotoForm,
-  },
+    UserHeader
+    // UploadPhotoForm,
+    // FollowUser,
+    // UnFollowUser,
+    // BanUser,
+    // UnBanUser,
+    // UpdateUsernameForm
+},
   name: 'HomeView',
   data() {
     return {
@@ -65,10 +74,10 @@ export default {
 
         if (liked) {
           // Send DELETE request to unlike the photo
-          await axios.delete(`/user/${username}/photos/likes?Photoid=${photoId}`);
+          await this.$axios.delete(`/user/${username}/photos/likes?Photoid=${photoId}`);
         } else {
           // Send POST request to like the photo
-          await axios.post(`/user/${username}/photos/likes?Photoid=${photoId}`);
+          await this.$axios.post(`/user/${username}/photos/likes?Photoid=${photoId}`);
         }
         window.location.reload()
         // Update dislikeStatus after toggling the like state
@@ -80,7 +89,7 @@ export default {
     async postComment(PhotoId) {
       try {
         const username = this.$route.params.username;
-        const response = await axios.post(
+        const response = await this.$axios.post(
           `/user/${username}/photos/comment?Photoid=${PhotoId}`,
           {
             content: this.commentInputs[PhotoId],
@@ -104,7 +113,7 @@ export default {
     async fetchUserData() {
       try {
         const username = this.$route.params.username;
-        const response = await axios.get(`/user/${username}`);
+        const response = await this.$axios.get(`/user/${username}/`);
 
         if (response.status === 200) {
           this.userData = response.data;

@@ -13,7 +13,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   
   export default {
     data() {
@@ -29,7 +29,7 @@
           const username = this.$route.params.username;
   
           // Make a POST request to follow the user
-          const response = await axios.post(`/user/${username}/follow_list`, {
+          const response = await this.$axios.post(`/user/${username}/follow_list`, {
             following: this.followUsername,
           });
   

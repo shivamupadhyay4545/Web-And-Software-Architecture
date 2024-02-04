@@ -13,7 +13,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   
   export default {
     data() {
@@ -29,7 +29,7 @@
           const username = this.$route.params.username;
   
           // Make a DELETE request to unban the user
-          const response = await axios.delete(`/user/${username}/ban_list`, {
+          const response = await this.$axios.delete(`/user/${username}/ban_list`, {
             data: { banned: this.unbanUsername },
           });
   

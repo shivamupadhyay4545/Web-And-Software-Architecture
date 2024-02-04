@@ -13,7 +13,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   
   export default {
     data() {
@@ -29,7 +29,7 @@
           const username = this.$route.params.username;
   
           // Make a POST request to unfollow the user
-          const response = await axios.delete(`/user/${username}/follow_list`, {
+          const response = await this.$axios.delete(`/user/${username}/follow_list`, {
             data: {
                      following: this.unfollowUsername,
                  },
@@ -40,6 +40,9 @@
             console.log('User unfollowed successfully!');
             window.location.reload();
             this.successMessage= "User Unfollowed Successfully"
+            setTimeout(() => {
+              this.successMessage = '';
+            }, 5000);
             this.unfollowUsername=''
             // You can perform additional actions on successful unfollow
           } else {

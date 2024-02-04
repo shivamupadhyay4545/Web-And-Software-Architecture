@@ -1,5 +1,17 @@
 <template>
     <div>
+      <div>
+      <router-link
+        :to="{ name: 'HomeView', params: { username: $route.params.username } }"
+      >
+        Go to Home
+      </router-link>
+    </div>
+    <div>
+      <router-link :to="{ name: 'UserProfile', params: { username: $route.params.username } }">
+      Go to User Profile
+    </router-link>
+  </div>
       <img :src="getImageUrl(photoBytes)" alt="User Photo" />
       <button v-if="isOwner" @click="deletePhoto">Delete Photo</button>
       <div v-for="comment in comments" :key="comment.DateTime">
@@ -15,7 +27,7 @@
   </template>
   
   <script>
-  import axios from 'axios';
+  // import axios from 'axios';
   import moment from 'moment';
   
   export default {
@@ -44,7 +56,7 @@
         const queryParamValue = this.PhotoId; // Replace with your actual query parameter value
         const url = `/user/${this.username}/photos/comment?Photoid=${queryParamValue}`;
 
-        const response = await axios.delete(url, { data: jsonPayload });
+        const response = await this.$axios.delete(url, { data: jsonPayload });
 
 
         if (response.status === 200) {
@@ -65,7 +77,7 @@
         // Assuming this.username, this.PhotoId, and other necessary values are defined
         const url = `/user/${this.username}/deleted_photos?Photoid=${this.PhotoId}`;
         
-        const response = await axios.delete(url);
+        const response = await this.$axios.delete(url);
 
         if (response.status === 200) {
             window.history.back();
@@ -86,7 +98,7 @@
         try {
             const parts = this.PhotoId.split('_');
           // Make a GET request to fetch comments data
-          const response = await axios.get(`/user/${parts[0]}/photos/${this.PhotoId}`);
+          const response = await this.$axios.get(`/user/${parts[0]}/photos/${this.PhotoId}`);
   
           // Update data with the fetched comments and photoBytes
           this.comments = response.data.comments;
