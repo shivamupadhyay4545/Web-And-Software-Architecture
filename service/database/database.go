@@ -31,7 +31,10 @@ Then you can initialize the AppDatabase and pass it to the api package.
 package database
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +48,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+//go:embed migration.sql
 var migration string
 
 // AppDatabase is the high level interface for the DB
@@ -54,11 +58,13 @@ type AppDatabase interface {
 
 	Ping() error
 
-	CreateUser(userName string, userif string, w http.ResponseWriter, ctx reqcontext.RequestContext)
+	CreateUser(userName string, w http.ResponseWriter, ctx reqcontext.RequestContext)
+
+	Authorize(username string, token string, w http.ResponseWriter, ctx reqcontext.RequestContext) (is_valid bool)
 
 	Stream(username string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
-	ChangeUserName(Newname string, Name string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext)
+	ChangeUserName(Newname string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
 	UpPhoto(username string, fileBytes []byte, w http.ResponseWriter, ctx reqcontext.RequestContext)
 
@@ -124,7 +130,7 @@ func New(db *sql.DB) (AppDatabase, error) {
 		qury := `
 		CREATE TABLE IF NOT EXISTS users (
 			username TEXT PRIMARY KEY,
-			name TEXT
+			id TEXT
 		);
 		CREATE TABLE IF NOT EXISTS photos (
 			username TEXT NOT NULL,
@@ -176,18 +182,106 @@ func (db *appdbimpl) Ping() error {
 
 var server_error = "internal server error:  %w"
 
-func (db *appdbimpl) CreateUser(userName string, userid string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
-	_, err := db.c.Exec("INSERT OR IGNORE INTO users (username, name) VALUES (?, ?)", userid, userName)
+func (db *appdbimpl) CreateUser(userName string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
+
+	var hashString string
+	var count int
+	err := db.c.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", userName).Scan(&count)
 	if err != nil {
-		ctx.Logger.WithError(err).Error(
-			fmt.Errorf(server_error, err).Error())
 		w.WriteHeader(http.StatusInternalServerError)
-		_, err := w.Write([]byte(`{"error": "Internal Server Error"}`))
+		_, err := w.Write([]byte(`{"error": "Database query error"}`))
 		if err != nil {
 			ctx.Logger.WithError(err).Error(write_err)
 		}
 		return
 	}
+
+	if count == 0 {
+
+		hasher := sha256.New()
+
+		// Write the username to the hash
+		hasher.Write([]byte(userName))
+
+		// Get the final hash as a byte slice
+		hashBytes := hasher.Sum(nil)
+
+		// Convert the hash to a hexadecimal string
+		hashString = hex.EncodeToString(hashBytes)
+
+		_, err := db.c.Exec("INSERT OR IGNORE INTO users (username, id) VALUES (?, ?)", userName, hashString)
+		if err != nil {
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte(`{"error": "Internal Server Error"}`))
+			if err != nil {
+				ctx.Logger.WithError(err).Error(write_err)
+			}
+			return
+		}
+	} else {
+		err = db.c.QueryRow(`SELECT id FROM users WHERE username = ?`, userName).Scan(&hashString)
+		if err != nil {
+			ctx.Logger.WithError(err).Error(
+				fmt.Errorf(server_error, err).Error())
+			http.Error(w, `{"error": "Failed to scan hashstring"}`, http.StatusInternalServerError)
+			return
+		}
+
+	}
+	responseJSON := map[string]interface{}{
+		"authtoken": hashString,
+	}
+	fmt.Println(hashString)
+	responseBytes, err := json.Marshal(responseJSON)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(
+			fmt.Errorf("unmarshal error:  %w", err).Error())
+		http.Error(w, `{"error": "Failed to marshal response JSON"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(responseBytes)
+	if err != nil {
+		ctx.Logger.WithError(err).Error(write_err)
+	}
+
+}
+
+func (db *appdbimpl) Authorize(username string, token string, w http.ResponseWriter, ctx reqcontext.RequestContext) (is_valid bool) {
+	count := 0
+
+	err := db.c.QueryRow(`SELECT COUNT(*) FROM users WHERE id = ? AND username = ?`, token, username).Scan(&count)
+	is_valid = count == 1
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, err := w.Write([]byte("error validating user"))
+
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
+
+		ctx.Logger.WithError(err).Error("error validating user")
+		return false
+	}
+
+	if !is_valid {
+		fmt.Println(token)
+		w.WriteHeader(http.StatusUnauthorized)
+		_, err := w.Write([]byte("invalid token"))
+
+		if err != nil {
+			ctx.Logger.WithError(err).Error(write_err)
+		}
+
+		ctx.Logger.WithError(err).Error(token)
+		return is_valid
+	}
+
+	return is_valid
 
 }
 
@@ -268,7 +362,7 @@ func (db *appdbimpl) Stream(userName string, w http.ResponseWriter, ctx reqconte
 	}
 }
 
-func (db *appdbimpl) ChangeUserName(Name string, Newname string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
+func (db *appdbimpl) ChangeUserName(Newname string, username string, w http.ResponseWriter, ctx reqcontext.RequestContext) {
 	var count int
 	err := db.c.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
 	if err != nil {
@@ -289,27 +383,8 @@ func (db *appdbimpl) ChangeUserName(Name string, Newname string, username string
 		return
 	}
 
-	err = db.c.QueryRow("SELECT COUNT(*) FROM users WHERE name = ?", Name).Scan(&count)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err := w.Write([]byte(`{"error": "Database query error"}`))
-		if err != nil {
-			ctx.Logger.WithError(err).Error(write_err)
-		}
-		return
-	}
-
-	if count != 1 {
-		w.WriteHeader(http.StatusConflict)
-		_, err := w.Write([]byte(`{"error": "username conflict error"}`))
-		if err != nil {
-			ctx.Logger.WithError(err).Error(write_err)
-		}
-		return
-	}
-
 	// Perform the username update
-	_, err = db.c.Exec("UPDATE users SET name = ? WHERE name = ? and username = ?", Newname, Name, username)
+	_, err = db.c.Exec("UPDATE users SET username = ? WHERE  username = ?", Newname, username)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err := w.Write([]byte(`{"error": "Error while updating database"}`))

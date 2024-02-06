@@ -2,9 +2,9 @@
     <div class="register">
       <h2>Update Username</h2>
       <form @submit.prevent="updateUsername">
-        <input type="text" v-model="name" placeholder="Enter current name" />
+
   
-        <input type="text" v-model="newName" placeholder="Enter new name" />
+        <input type="text" v-model="newName" placeholder="Enter new username" />
   
         <button type="submit">Update Username</button>
       </form>
@@ -19,7 +19,6 @@
   export default {
     data() {
       return {
-        name: '',
         newName: '',
         successMessage: '',
         errorMessage: '',
@@ -30,18 +29,18 @@
         try {
           const username = this.$route.params.username;
           const response = await this.$axios.put(`/user/${username}/`, {
-            Name: this.name,
             Newname: this.newName,
           });
   
           if (response.status === 200) {
             console.log('Username updated successfully!');
-            this.name = '';
-            this.newName = '';
+            
             this.successMessage = "Username Updated Successfully"
             setTimeout(() => {
               this.successMessage = '';
             }, 5000);
+            this.$router.push({ path: `/${this.newName}/home` });
+            this.newName = '';
             // You can perform additional actions on successful update
           } else {
             console.error('Failed to update username:', response.statusText);
@@ -51,7 +50,7 @@
             }, 5000);
           }
         } catch (error) {
-          console.error('Error during username update:', this.name,this.newName);
+          console.error('Error during username update:',this.newName);
           this.errorMessage =" Oh No!"
           setTimeout(() => {
               this.errorMessage = '';

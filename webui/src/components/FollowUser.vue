@@ -21,17 +21,26 @@
         followUsername: '',
         errorMessage: '',
         successMessage: '',
+        token: '',
       };
     },
     methods: {
       async followUser() {
         try {
+          // Retrieve the authorization token from Axios defaults
+          const authToken = this.$axios.defaults.headers.common['Authorization'];
+          console.log('Authorization Token:', authToken);
+
           const username = this.$route.params.username;
   
           // Make a POST request to follow the user
           const response = await this.$axios.post(`/user/${username}/follow_list`, {
-            following: this.followUsername,
-          });
+      following: this.followUsername,
+    }, {
+      headers: {
+        'Authorization': authToken,
+      },
+    });
   
           if (response.status === 200) {
             console.log('User followed successfully!');
@@ -41,8 +50,8 @@
             // You can perform additional actions on successful follow
           } else {
             this.followUsername= ''
-            console.error('Failed to follow user:', response.statusText);
-            this.errorMessage = response.status === 409 ? response.data.message : 'Failed to follow user.';
+            console.error('Failed to follow user:', response.message);
+            this.errorMessage = response.status === 409 ? response.message : 'Failed to follow user.';
             setTimeout(() => {
           this.errorMessage = '';
         }, 5000);

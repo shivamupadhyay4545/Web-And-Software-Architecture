@@ -1,10 +1,17 @@
 <template>
   <div>
     <UserHeader />
-    <h1 class="main-title">Hello User, Welcome to your feed</h1>
+    <h1 class="main-title">Hello {{ this.$route.params.username }}, Welcome to your feed</h1>
+    <div>
     <router-link :to="{ name: 'UserProfile', params: { username: $route.params.username } }">
       Go to User Profile
     </router-link>
+  </div>
+  <div>
+    <router-link :to="{ path: '/', component: Login }">
+      LOGOUT
+    </router-link>
+  </div>
     <div v-if="userData && userData.photos" class="photo-container">
       <!-- Display user data when 'photos' is not null -->
       <div class="photo-card" v-for="photo in userData.photos" :key="photo.PhotoId">
@@ -60,6 +67,7 @@ export default {
     return {
       userData: null,
       commentInputs: {},
+      userName: ''
     };
   },
   mounted() {
@@ -67,18 +75,25 @@ export default {
     this.fetchUserData();
   },
   methods: {
-    
     async toggleLike(photoId, liked) {
       try {
         const username = this.$route.params.username;
+        const authToken = this.$axios.defaults.headers.common['Authorization'];
+
+        const config = {
+          headers: {
+            'Authorization': authToken,
+          },
+        };
 
         if (liked) {
           // Send DELETE request to unlike the photo
-          await this.$axios.delete(`/user/${username}/photos/likes?Photoid=${photoId}`);
+          await this.$axios.delete(`/user/${username}/photos/likes?Photoid=${photoId}`, config);
         } else {
           // Send POST request to like the photo
-          await this.$axios.post(`/user/${username}/photos/likes?Photoid=${photoId}`);
+          await this.$axios.post(`/user/${username}/photos/likes?Photoid=${photoId}`, config);
         }
+
         window.location.reload()
         // Update dislikeStatus after toggling the like state
         
@@ -88,12 +103,19 @@ export default {
     },
     async postComment(PhotoId) {
       try {
+        const authToken = this.$axios.defaults.headers.common['Authorization'];
+
         const username = this.$route.params.username;
         const response = await this.$axios.post(
           `/user/${username}/photos/comment?Photoid=${PhotoId}`,
           {
             content: this.commentInputs[PhotoId],
-          }
+          },
+          {
+      headers: {
+        'Authorization': authToken,
+      },
+    }
         );
 
         if (response.status === 200) {
@@ -113,17 +135,22 @@ export default {
     async fetchUserData() {
       try {
         const username = this.$route.params.username;
-        const response = await this.$axios.get(`/user/${username}/`);
+        const authToken = this.$axios.defaults.headers.common['Authorization'];
+        const config = {
+          headers: {
+            'Authorization': authToken,
+          },
+        };
+        const response = await this.$axios.get(`/user/${username}/`, config);
 
         if (response.status === 200) {
           this.userData = response.data;
-          // Initialize dislikeStatus for each photo
           
         } else {
           console.error('Failed to fetch user data:', response.statusText);
         }
       } catch (error) {
-        console.error('Error during user data fetch:', error.message);
+        console.error('Error during user data fetch:', error.message, this.$axios.headers.Authorization);
       }
     },
     formatTimestamp(timestamp) {

@@ -21,7 +21,7 @@ var write_err = "error writing response"
 
 func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 
-	var user models.Details
+	var user models.Username
 
 	// Decode JSON data coming from the request
 	decoder := json.NewDecoder(r.Body)
@@ -35,7 +35,6 @@ func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter
 	}
 
 	// Validate the data based on the user struct
-	// Note: replace validate with your validation logic
 	validationErr := validate.Struct(user)
 	if validationErr != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -46,7 +45,8 @@ func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter
 
 		return
 	}
-	rt.db.CreateUser(user.Name, user.Id, w, ctx)
+
+	rt.db.CreateUser(user.Username, w, ctx)
 
 	// if err != nil {
 	// 	log.Fatal(err)
@@ -56,26 +56,35 @@ func (rt *_router) Dologin(w http.ResponseWriter, r *http.Request, ps httprouter
 	// }
 
 	// Respond with a success message
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte(`{"message": "User Login Done"}`))
-	if err != nil {
-		ctx.Logger.WithError(err).Error(write_err)
-	}
+	// w.WriteHeader(http.StatusOK)
+	// _, err := w.Write([]byte(`{"message": "User Login Done"}`))
+	// if err != nil {
+	// 	ctx.Logger.WithError(err).Error(write_err)
+	// }
 }
 
 func (rt *_router) GetMyStream(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	username := ps.ByName("username")
-	rt.db.Stream(username, w, ctx)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// 	w.WriteHeader(http.StatusInternalServerError)
-	// 	w.Write([]byte(`{"error": "Internal Server Error"}`))
-	// 	return
-	// }
+
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.Stream(username, w, ctx)
+	}
 }
 func (rt *_router) GetMyProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	username := ps.ByName("username")
-	rt.db.Profile(username, w, ctx)
+
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.Profile(username, w, ctx)
+	}
+
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -105,7 +114,15 @@ func (rt *_router) FollowUser(w http.ResponseWriter, r *http.Request, ps httprou
 			fmt.Errorf("error validating following name:  %w", err).Error())
 		return
 	}
-	rt.db.Follow(username, follow.Following, w, ctx)
+
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.Follow(username, follow.Following, w, ctx)
+	}
+
 	// if err != nil {
 	// 	http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
 	// 	return
@@ -131,7 +148,14 @@ func (rt *_router) UnfollowUser(w http.ResponseWriter, r *http.Request, ps httpr
 		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	}
-	rt.db.Unfollow(username, follow.Following, w, ctx)
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.Unfollow(username, follow.Following, w, ctx)
+	}
+
 	// if err != nil {
 	// 	http.Error(w, `{"error": "Failed to connect to the database"}`, http.StatusInternalServerError)
 	// 	return
@@ -157,7 +181,14 @@ func (rt *_router) BanUser(w http.ResponseWriter, r *http.Request, ps httprouter
 		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	}
-	rt.db.Ban(username, ban.Banned, w, ctx)
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.Ban(username, ban.Banned, w, ctx)
+	}
+
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -188,7 +219,15 @@ func (rt *_router) UnbanUser(w http.ResponseWriter, r *http.Request, ps httprout
 		http.Error(w, validationErr.Error(), http.StatusBadRequest)
 		return
 	}
-	rt.db.UnBan(username, ban.Banned, w, ctx)
+
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.UnBan(username, ban.Banned, w, ctx)
+	}
+
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -212,7 +251,14 @@ func (rt *_router) RemovePhoto(w http.ResponseWriter, r *http.Request, ps httpro
 		http.Error(w, `{"error": "Failed to convert photo code to integer"}`, http.StatusInternalServerError)
 		return
 	}
-	rt.db.DelPhoto(username, photocode, Photoid, w, ctx)
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.DelPhoto(username, photocode, Photoid, w, ctx)
+	}
+
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -225,7 +271,6 @@ func (rt *_router) UpdateUsername(w http.ResponseWriter, r *http.Request, ps htt
 	username := ps.ByName("username")
 
 	var changeName struct {
-		Name    string `json:"Name" validate:"required,min=3,max=16"`
 		Newname string `json:"Newname" validate:"required,min=3,max=16"`
 	}
 
@@ -252,7 +297,14 @@ func (rt *_router) UpdateUsername(w http.ResponseWriter, r *http.Request, ps htt
 		}
 		return
 	}
-	rt.db.ChangeUserName(changeName.Name, changeName.Newname, username, w, ctx)
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.ChangeUserName(changeName.Newname, username, w, ctx)
+	}
+
 	// if err != nil {
 	// 	log.Fatal(err)
 	// 	w.WriteHeader(http.StatusInternalServerError)
@@ -324,7 +376,14 @@ func (rt *_router) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httpro
 		}
 		return
 	}
-	rt.db.UpPhoto(username, fileBytes, w, ctx)
+	token := r.Header.Get("Authorization")
+
+	is_valid := rt.db.Authorize(username, token, w, ctx)
+
+	if is_valid {
+		rt.db.UpPhoto(username, fileBytes, w, ctx)
+	}
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err := w.Write([]byte(`{"error": "Failed to connect to the database"}`))

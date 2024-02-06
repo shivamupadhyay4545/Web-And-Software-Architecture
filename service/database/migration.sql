@@ -1,6 +1,6 @@
-        `CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS users (
 			username TEXT PRIMARY KEY,
-			name TEXT
+			id TEXT
 		);
 		CREATE TABLE IF NOT EXISTS photos (
 			username TEXT NOT NULL,
@@ -32,4 +32,4 @@
 			who TEXT NOT NULL,
 			whom TEXT NOT NULL,
 			PRIMARY KEY (who, whom)
-		);`
+		);

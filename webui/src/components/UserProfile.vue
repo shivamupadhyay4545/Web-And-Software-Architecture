@@ -12,7 +12,7 @@
           <p class="detail">Followings: {{ followingsCount }}</p>
         </div>
   
-        <div v-if="photos.length > 0" class="photo-list">
+        <div v-if="photos" class="photo-list">
           <h3 class="photo-heading">Photos</h3>
           <ul>
             <div v-for="photo in photos" :key="photo.photoId" class="photo-item">
@@ -22,7 +22,7 @@
               <div class="photo-details">
                 <p class="comment-count">Comments: {{ photo.NoComments }}</p>
                 <input
-                  v-model="commentInput"
+                  v-model="commentInput[photo.photoId]"
                   class="comment-input"
                   placeholder="Add a comment..."
                 />

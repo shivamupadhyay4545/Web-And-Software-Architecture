@@ -52,7 +52,7 @@
             console.log('Photo uploaded successfully!');
             this.$refs.fileInput.value = '';
             this.photoSelected = false;
-            window.location.reload();
+            // window.location.reload();
           } else {
             console.error('Failed to upload photo:', response.status, response.message);
           }

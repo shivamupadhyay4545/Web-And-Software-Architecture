@@ -3,8 +3,8 @@
     <img class="logo" src="../assets/WasaPhotoLogo.png" />
     <h1>Login</h1>
     <div class="register">
-      <input type="text" v-model="id" placeholder="Enter ID" />
-      <input type="text" v-model="name" placeholder="Enter Name" />
+      <!-- <input type="text" v-model="id" placeholder="Enter USERID" /> -->
+      <input type="text" v-model="name" placeholder="Enter USERNAME" />
       <button type="submit">Login</button>
     </div>
   </form>
@@ -12,12 +12,13 @@
 
 <script>
 // import axios from 'axios';
+import { setAuthToken } from '../services/axios';
 
 export default {
   name: 'LoginForm',
   data() {
     return {
-      id: '',
+      token: '',
       name: '',
     };
   },
@@ -25,13 +26,19 @@ export default {
     async login() {
       try {
         const response = await this.$axios.post('/session', {
-          id: this.id,
           name: this.name,
         });
 
         if (response.status === 200) {
+          this.token = response.data["authtoken"];
+
+          // Set the Authorization header for subsequent requests
+          this.$axios.defaults.headers.common['Authorization'] = this.token;
+
+          setAuthToken(this.token);
+
           console.log('Login successful!');
-          const username = this.id;
+          const username = this.name;
 
           // Use Vue Router to navigate to the user profile page
           this.$router.push({ path: `/${username}/home` });
@@ -40,7 +47,7 @@ export default {
           console.error('Login failed:', response.statusText);
         }
       } catch (error) {
-        console.error('Error during login:', error.message);
+        console.error('Error during login:', error.message, this.name);
       }
     },
   },

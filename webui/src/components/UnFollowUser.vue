@@ -40,6 +40,7 @@
             console.log('User unfollowed successfully!');
             window.location.reload();
             this.successMessage= "User Unfollowed Successfully"
+
             setTimeout(() => {
               this.successMessage = '';
             }, 5000);
