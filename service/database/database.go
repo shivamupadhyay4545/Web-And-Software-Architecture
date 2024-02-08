@@ -38,7 +38,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -233,7 +232,6 @@ func (db *appdbimpl) CreateUser(userName string, w http.ResponseWriter, ctx reqc
 	responseJSON := map[string]interface{}{
 		"authtoken": hashString,
 	}
-	fmt.Println(hashString)
 	responseBytes, err := json.Marshal(responseJSON)
 	if err != nil {
 		ctx.Logger.WithError(err).Error(
@@ -269,7 +267,6 @@ func (db *appdbimpl) Authorize(username string, token string, w http.ResponseWri
 	}
 
 	if !is_valid {
-		fmt.Println(token)
 		w.WriteHeader(http.StatusUnauthorized)
 		_, err := w.Write([]byte("invalid token"))
 
@@ -631,7 +628,6 @@ func (db *appdbimpl) Profile(username string, w http.ResponseWriter, ctx reqcont
 		http.Error(w, `{"error": "Failed to marshal response", "ERR": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
-	log.Print("done", http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(response)
