@@ -141,7 +141,7 @@ export default {
             'Authorization': authToken,
           },
         };
-        const response = await this.$axios.get(`/user/${username}/`, config);
+        const response = await this.$axios.get(`/user/${username}`, config);
 
         if (response.status === 200) {
           this.userData = response.data;

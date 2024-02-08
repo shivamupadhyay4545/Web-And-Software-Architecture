@@ -32,9 +32,9 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.GET("/user/:username/profile", rt.wrap(rt.GetMyProfile))
 	rt.router.DELETE("/user/:username/deleted_photos", rt.wrap(rt.RemovePhoto))
 
-	rt.router.GET("/user/:username/", rt.wrap(rt.GetMyStream))
-	rt.router.PUT("/user/:username/", rt.wrap(rt.UpdateUsername))
-	rt.router.POST("/user/:username/", rt.wrap(rt.UploadPhoto))
+	rt.router.GET("/user/:username", rt.wrap(rt.GetMyStream))
+	rt.router.PUT("/user/:username", rt.wrap(rt.UpdateUsername))
+	rt.router.POST("/user/:username", rt.wrap(rt.UploadPhoto))
 
 	return rt.router
 }

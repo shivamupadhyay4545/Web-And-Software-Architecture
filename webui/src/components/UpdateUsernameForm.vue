@@ -28,7 +28,7 @@
       async updateUsername() {
         try {
           const username = this.$route.params.username;
-          const response = await this.$axios.put(`/user/${username}/`, {
+          const response = await this.$axios.put(`/user/${username}`, {
             Newname: this.newName,
           });
   

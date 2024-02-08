@@ -42,7 +42,7 @@
           const formData = new FormData();
           formData.append('image', this.photoFile);
   
-          const response = await this.$axios.post(`/user/${username}/`, formData, {
+          const response = await this.$axios.post(`/user/${username}`, formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
             },
