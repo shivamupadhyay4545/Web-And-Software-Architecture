@@ -44,11 +44,7 @@ import (
 
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/api/reqcontext"
 	"github.com/shivamupadhyay4545/Web-And-Software-Architecture/service/models"
-	"github.com/sirupsen/logrus"
 )
-
-//go:embed migration.sql
-var migration string
 
 // AppDatabase is the high level interface for the DB
 type AppDatabase interface {
@@ -114,19 +110,8 @@ func New(db *sql.DB) (AppDatabase, error) {
 			return nil, fmt.Errorf("error creating database structure: %w", err)
 		}
 	}
-	if migration != "" {
 
-		_, err = db.Exec(migration)
-
-		if err != nil {
-			logrus.Error("error executing migration.sql: ", err)
-			return nil, fmt.Errorf("error executing migration.sql: %w", err)
-		}
-
-	} else {
-
-		logrus.Error("migration.sql not found")
-		qury := `
+	qury := `
 		CREATE TABLE IF NOT EXISTS users (
 			username TEXT PRIMARY KEY,
 			id TEXT
@@ -163,11 +148,10 @@ func New(db *sql.DB) (AppDatabase, error) {
 			PRIMARY KEY (who, whom)
 			);`
 
-		_, err = db.Exec(qury)
+	_, err = db.Exec(qury)
 
-		if err != nil {
-			return nil, fmt.Errorf("error executing migration: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("error executing migration: %w", err)
 	}
 
 	return &appdbimpl{
