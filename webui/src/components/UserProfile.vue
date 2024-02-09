@@ -15,14 +15,14 @@
         <div v-if="photos" class="photo-list">
           <h3 class="photo-heading">Photos</h3>
           <ul>
-            <div v-for="photo in photos" :key="photo.photoId" class="photo-item">
+            <div v-for="photo in photos" :key="photo.PhotoId" class="photo-item">
               <button @click="showComments(photo)">
                 <img :src="getImageUrl(photo.Photobytes)" alt="User Photo" />
               </button>
               <div class="photo-details">
                 <p class="comment-count">Comments: {{ photo.NoComments }}</p>
                 <input
-                  v-model="commentInput[photo.photoId]"
+                  v-model="commentInput[photo.PhotoId]"
                   class="comment-input"
                   placeholder="Add a comment..."
                 />
@@ -72,7 +72,7 @@
         followersCount: 0,
         followingsCount: 0,
         photos: [],
-        commentInput: '',
+        commentInput: {},
       };
     },
     methods: {
@@ -108,7 +108,7 @@
           const response = await this.$axios.post(
             `/user/${username}/photos/comment?Photoid=${PhotoId}`,
             {
-              content: this.commentInput,
+              content: this.commentInput[PhotoId],
             }
           );
   
@@ -116,7 +116,7 @@
             // Successfully posted comment, fetch updated user data
             this.fetchUserProfile(); // Corrected method name
             // Clear the comment input
-            this.commentInput = '';
+            this.commentInput[PhotoId] = '';
           } else {
             console.error('Failed to post comment:', response.statusText);
           }

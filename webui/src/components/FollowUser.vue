@@ -47,6 +47,7 @@
             this.followUsername =''
             this.successMessage ="User Followed Successfully"
             window.location.reload();
+            console.log('User followed successfully!');
             // You can perform additional actions on successful follow
           } else {
             this.followUsername= ''

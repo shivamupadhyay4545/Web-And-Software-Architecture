@@ -35,8 +35,14 @@
   
           if (response.status === 200) {
             console.log('User banned successfully!');
+            
             this.banUsername=''
             window.location.reload();
+            this.successMessage= "user banned successfully"
+            console.log('User banned successfully!');
+            setTimeout(() => {
+              this.successMessageMessage = '';
+            }, 5000);
             
             // You can perform additional actions on successful ban
           } else {
