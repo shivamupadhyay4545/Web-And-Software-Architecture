@@ -431,6 +431,16 @@ func (db *appdbimpl) Follow(username string, following string, w http.ResponseWr
 		http.Error(w, `{"error": "User in ban list"}`, http.StatusConflict)
 		return
 	}
+	err = db.c.QueryRow("SELECT COUNT(*) FROM banlist WHERE who = ? AND whom = ?", following, username).Scan(&count)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if count != 0 {
+		http.Error(w, `{"error": "i am banned by the user"}`, http.StatusConflict)
+		return
+	}
 
 	err = db.c.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", following).Scan(&count)
 	if err != nil {
