@@ -16,7 +16,10 @@
       <!-- Display user data when 'photos' is not null -->
       <div class="photo-card" v-for="photo in userData.photos" :key="photo.PhotoId">
         <div class="user-info">
-          <p class="username">{{ photo.Username }}</p>
+          <router-link :to="{ name: 'OtherUserProfile', params: { username:  $route.params.username, otherusername: photo.Username } }">
+            <p class="username">{{ photo.Username }}</p>
+          </router-link>
+          
         </div>
         <button class="photo-button" @click="showComments(photo)">
           <img :src="getImageUrl(photo.Photobytes)" alt="User Photo" />

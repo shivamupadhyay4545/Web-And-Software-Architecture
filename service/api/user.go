@@ -77,13 +77,7 @@ func (rt *_router) GetMyStream(w http.ResponseWriter, r *http.Request, ps httpro
 func (rt *_router) GetMyProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	username := ps.ByName("username")
 
-	token := r.Header.Get("Authorization")
-
-	is_valid := rt.db.Authorize(username, token, w, ctx)
-
-	if is_valid {
-		rt.db.Profile(username, w, ctx)
-	}
+	rt.db.Profile(username, w, ctx)
 
 	// if err != nil {
 	// 	log.Fatal(err)

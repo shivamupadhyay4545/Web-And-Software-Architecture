@@ -6,6 +6,7 @@ import Login from '../components/LoginForm.vue';
 import HomeView from '../views/HomeView.vue';
 import UserProfile from '../components/UserProfile.vue';
 import CommentPhotoForm from '../components/CommentPhotoForm.vue'
+import OtherUserProfile from '../components/OtherUserProfile.vue'
 
 
 
@@ -16,6 +17,7 @@ const router = createRouter({
     { path: '/home', component: HomeView },
     { path: '/:username/home', name : 'HomeView' ,component: HomeView }, // Dynamic route for username
     { path: '/:username/profile', name: 'UserProfile'  , component: UserProfile },
+    { path: '/:username/profile/:otherusername', name: 'OtherUserProfile'  , component: OtherUserProfile },
     { path: '/:username/profile/:PhotoId', name: 'CommentPhotoForm'  , component: CommentPhotoForm, props: true, },
   ],
 });
