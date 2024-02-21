@@ -33,7 +33,7 @@
           <img class="comment-logo" src="../assets/comment-logo.png" />
           <p class="comments-count">Comments: {{ photo.NoComments }}</p>
           <input v-model="commentInputs[photo.PhotoId]" class="comment-input" placeholder="Add a comment..." />
-          <button @click="postComment(photo.PhotoId)" class="post-comment-button">Post Comment</button>
+          <button :disabled="isCommentInputEmpty(photo.PhotoId)" @click="postComment(photo.PhotoId)" class="post-comment-button">Post Comment</button>
         </div>
         <p class="upload-time">Uploaded At {{ formatTimestamp(photo.CreatedAt) }}</p>
       </div>
@@ -133,6 +133,9 @@ export default {
         const username = this.$route.params.username;
         console.error('Error while posting comment:', error.message, 'username:', username, 'Photoid:', PhotoId);
       }
+    },
+    isCommentInputEmpty(photoId) {
+      return !this.commentInputs[photoId] || !this.commentInputs[photoId].trim();
     },
 
     async fetchUserData() {

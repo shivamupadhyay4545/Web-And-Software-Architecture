@@ -128,7 +128,7 @@
       showComments(photo) {
         // Use Vue Router to navigate to the comments route
         this.$router.push({
-          name: 'CommentPhotoForm', // Replace with the actual name of your Comments route
+          name: 'CommentPhotoForm', 
           params: { PhotoId: photo.PhotoId, username: this.$route.params.username },
         });
       },

@@ -66,7 +66,7 @@ func (rt *_router) UnlikePhoto(w http.ResponseWriter, r *http.Request, ps httpro
 
 }
 func (rt *_router) CommentPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
-	username := ps.ByName("username")
+	username := ps.ByName("username") // who is trying to comment
 	Photoid := r.URL.Query().Get("Photoid")
 
 	var comment models.Comment
